@@ -28,25 +28,12 @@ class NavBar extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          UserAccountsDrawerHeader(
-            accountName: const Text('Ahmet Cüneyt Tantuğ'), 
-            accountEmail: const Text('tantug@itu.edu.tr'),
-            currentAccountPicture: CircleAvatar(
-              child: ClipOval(child: Image.asset('images/profile.png')),
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                image: DecorationImage(
-                  image:NetworkImage('images/itu.jpeg'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
+          
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('AnaSayfa'),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage()));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage(userName: '', userImage: '', courses: {},)));
             },
           ),
           ListTile(

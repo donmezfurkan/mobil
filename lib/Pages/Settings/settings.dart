@@ -12,6 +12,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   Future<void> _logout(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userToken'); // Remove the userToken
+    await prefs.remove('userName'); // Remove the userName
     await prefs.setBool('isLoggedIn', false);
 
     Navigator.pushReplacement(

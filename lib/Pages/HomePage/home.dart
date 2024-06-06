@@ -1,15 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:scanitu/Pages/Profile/profile.dart' as profile;
-import 'package:scanitu/Pages/Courses/course.dart' as course;
+import 'package:scanitu/Pages/Courses/course.dart';
+import 'package:scanitu/utils/services/api_service.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class HomePage extends StatefulWidget {
+  final String userName;
+  final String userImage;
+  final Map<String, List<Map<String, dynamic>>> courses;
+
+  const HomePage({
+    super.key,
+    required this.userName,
+    required this.userImage,
+    required this.courses, String? userToken,
+  });
+
+  @override
+  // ignore: library_private_types_in_public_api
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final VisionAPIService _visionAPIService = VisionAPIService();
+  Map<String, dynamic> _userProfile = {};
+  List<dynamic>? fetchedCourses;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserProfileData();
+    _loadCoursesFromAPI();
+  }
+
+  Future<void> fetchUserProfileData() async {
+    final userProfile = await _visionAPIService.fetchUserProfile();
+    if (userProfile != null) {
+      setState(() {
+        _userProfile = userProfile['userProfile'];
+      });
+    } else {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kullanıcı bilgileri alınırken bir hata oluştu')),
+      );
+    }
+  }
+
+  Future<void> _loadCoursesFromAPI() async {
+    final courses = await _visionAPIService.fetchCourses();
+    setState(() {
+      fetchedCourses = courses;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Örnek kullanıcı bilgileri
-    final String userName = "John Doe";
-    final String userImage = "assets/images/profile_image.jpg";
+    final String userName = _userProfile['firstLastName'] ?? widget.userName;
+    final String userImage = _userProfile['userImage'] ?? widget.userImage;
 
     return Scaffold(
       appBar: AppBar(
@@ -27,29 +74,39 @@ class HomePage extends StatelessWidget {
             flex: 1,
             child: GestureDetector(
               onTap: () {
-                // Navigate to profile page with user data
-                Navigator.push(context, MaterialPageRoute(builder: (context) => profile.ProfilePage(userName: userName, userImage: userImage)));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => profile.ProfilePage(
+                      userName: userName,
+                      userImage: userImage,
+                    ),
+                  ),
+                );
               },
               child: Container(
                 color: Colors.grey[200],
                 padding: const EdgeInsets.all(20.0),
-                child: const Row(
+                child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundImage: AssetImage('assets/images/profile_image.jpg'),
+                      //backgroundImage: AssetImage(userImage),
                       radius: 30,
                     ),
-                    SizedBox(width: 20),
+                    const SizedBox(width: 20),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Merhaba,',
                           style: TextStyle(fontSize: 18),
                         ),
                         Text(
-                          'Kullanıcı Adı Soyadı',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          userName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -58,20 +115,49 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 20), // Boşluk eklemek için SizedBox kullanımı
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.0),
+            child: Text(
+              'DERSLERİM',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ),
           Expanded(
             flex: 4,
-            child: ListView.builder(
-              itemCount: 4,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text('course'),
-                  onTap: () {
-                    // Navigate to course details page
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => course.CoursePage()));
-                  },
-                );
-              },
-            ),
+            child: fetchedCourses == null
+                ? const Center(child: CircularProgressIndicator())
+                : fetchedCourses!.isEmpty
+                    ? const Center(child: Text('Henüz kurs bulunmamaktadır.'))
+                    : ListView.builder(
+                        itemCount: fetchedCourses!.length,
+                        itemBuilder: (context, index) {
+                          final course = fetchedCourses![index];
+                          return ListTile(
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(course['courseCode'].toString()), // Ensure it's a String
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(course['courseName'] ?? 'Ders İsmi Yok'),
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const CoursePage(),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
           ),
         ],
       ),

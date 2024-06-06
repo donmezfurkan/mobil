@@ -34,7 +34,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const HomePage(),
+    const HomePage(userName: '', userImage: '', courses: {},),
     const ProfilePage(userName: '', userImage: ''),
     const CoursePage(),
     const SettingsPage(),
@@ -70,7 +70,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue, // Seçili buton rengi
+        selectedItemColor: const Color.fromARGB(255, 4, 4, 67), // Seçili buton rengi
         unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
       ),

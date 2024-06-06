@@ -3,6 +3,7 @@ import 'package:scanitu/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:jwt_decode/jwt_decode.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,23 +34,35 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://172.20.10.2:3030/api/auth/login'),
+        
+        //Uri.parse('http://172.20.10.2:3030/api/auth/login'),
+        //Uri.parse('http://192.168.1.106:3030/api/auth/login'),
+        Uri.parse('http://localhost:3030/api/auth/login'),
         headers: <String, String>{
           'Content-Type': 'application/json',
         },
         body: jsonEncode(loginData),
       );
-      print(loginData);
       if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        final token = responseData['token'];
+
+        Map<String, dynamic> payload = Jwt.parseJwt(token);
+        String userId = payload['id'];
+        
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString("userToken", jsonDecode(response.body)["token"]);
         await prefs.setString("userName", username);
-        await prefs.setBool('isLoggedIn', true); // Kullanıcının giriş yaptığını kaydet
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('userId', userId); // Kullanıcının giriş yaptığını kaydet
 
         print('Login successful. Token: ${response.body}');
         message = 'Login successful. Token: ${response.body}';
         error = false;
 
+        
+        
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => MyApp()),
