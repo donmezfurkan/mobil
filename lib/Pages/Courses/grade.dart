@@ -59,39 +59,61 @@ class _EnterGradePageState extends State<EnterGradePage> {
   }
 
   Future<void> _showGrades() async {
-  try {
-    Map<String, dynamic>? response = await _visionAPIService.gradeShow(selectedExamId!);
-    List<dynamic> gradeArray = response!['gradeArray'];
+    try {
+      Map<String, dynamic>? response = await _visionAPIService.gradeShow(selectedExamId!);
+      List<dynamic> gradeArray = response!['gradeArray'];
 
-    // Null değerlerini 0 ile değiştirmek ve verileri öğrenci numaralarına göre kategorize etmek
-    Map<int, List<int>> categorizedData = {};
-    for (var grade in gradeArray) {
-      int studentId = grade['studentId'];
-      List<int> scores = (grade['scores'] as List<dynamic>).map<int>((score) {
-        if (score == null) {
-          return 0;
-        } else if (score is int) {
-          return score;
-        } else if (score is Map<String, dynamic>) {
-          return score.values.first as int;
-        } else {
-          return 0;
-        }
-      }).toList();
+      // Null değerlerini 0 ile değiştirmek ve verileri öğrenci numaralarına göre kategorize etmek
+      Map<int, List<int>> categorizedData = {};
+      for (var grade in gradeArray) {
+        int studentId = grade['studentId'];
+        List<int> scores = (grade['scores'] as List<dynamic>).map<int>((score) {
+          if (score == null) {
+            return 0;
+          } else if (score is int) {
+            return score;
+          } else if (score is Map<String, dynamic>) {
+            return score.values.first as int;
+          } else {
+            return 0;
+          }
+        }).toList();
 
-      categorizedData[studentId] = scores;
+        categorizedData[studentId] = scores;
+      }
+
+      // Tabloyu göstermek için setState çağırın
+      setState(() {
+        _categorizedGrades = categorizedData;
+      });
+    } catch (e) {
+      print('Failed to show grades: $e');
+      _showErrorDialog(context, 'Failed to show grades: $e');
     }
-
-    // Tabloyu göstermek için setState çağırın
-    setState(() {
-      _categorizedGrades = categorizedData;
-    });
-
-    print(categorizedData);
-  } catch (e) {
-    print('Failed to show grades: $e');
   }
-}
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Error'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                setState(() {
+                  _categorizedGrades = {}; // Tablonun sıfırlanması
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Future<void> _uploadImage(String base64Image) async {
     try {
@@ -197,6 +219,7 @@ class _EnterGradePageState extends State<EnterGradePage> {
                   ),
                 ),
               ),
+            SizedBox(height: 16), // Boşluk eklemek için
             if (_categorizedGrades.isNotEmpty)
               Expanded(
                 child: SingleChildScrollView(
@@ -240,17 +263,17 @@ class _EnterGradePageState extends State<EnterGradePage> {
     return Table(
       border: TableBorder.all(),
       children: [
-        TableRow(
+        const TableRow(
           children: [
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.all(8.0),
               child: Text(
                 'STUDENT ID',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.all(8.0),
               child: Text(
                 'SCORES',
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -324,8 +347,8 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     final bytes = await imageFile.readAsBytes();
     final img.Image originalImage = img.decodeImage(bytes)!;
 
-    final int targetWidth = 400;
-    final int targetHeight = 100;
+    const int targetWidth = 400;
+    const int targetHeight = 100;
 
     // Resmi orantılı olarak yeniden boyutlandır
     img.Image resizedImage;

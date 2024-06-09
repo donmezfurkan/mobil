@@ -372,7 +372,6 @@ class VisionAPIService {
       headers: headers,
       body: jsonEncode({'examId': examId}),
     );
-
     if (response.statusCode == 200) {
       return json.decode(response.body) as Map<String, dynamic>;
     } else {

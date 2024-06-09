@@ -50,6 +50,7 @@ class _CoursePageState extends State<CoursePage> {
         combinedData[courseName] = [];
         examFutures.add(_visionAPIService.fetchExam(course['_id']));
       }
+      print(examFutures);
 
       List? fetchedExamsList = await Future.wait(examFutures);
 
