@@ -29,10 +29,20 @@ class _EnterGradePageState extends State<EnterGradePage> {
   List<dynamic>? detectedTexts;
 
   Map<int, List<int>> _categorizedGrades = {};
+  List<Map<String, dynamic>> ResponseImageArray = [];
+  Map<String, dynamic> detectedDataMap = {};
 
   final VisionAPIService _visionAPIService = VisionAPIService();
 
   final _formKey = GlobalKey<FormState>();
+
+  // Input form controllers
+  TextEditingController studentIdController = TextEditingController();
+  TextEditingController q1Controller = TextEditingController();
+  TextEditingController q2Controller = TextEditingController();
+  TextEditingController q3Controller = TextEditingController();
+  TextEditingController q4Controller = TextEditingController();
+  TextEditingController totalController = TextEditingController();
 
   @override
   void initState() {
@@ -117,37 +127,52 @@ class _EnterGradePageState extends State<EnterGradePage> {
 
   Future<void> _uploadImage(String base64Image) async {
     try {
-      List<dynamic>? texts = await _visionAPIService.detectText(base64Image);
+      Map<String, dynamic>? dataMap = await _visionAPIService.detectText(base64Image);
       setState(() {
-        detectedTexts = texts;
+        detectedDataMap = dataMap!; // detectedDataMap'i güncelle
+        _populateFields(detectedDataMap);
       });
     } catch (e) {
       print('Image upload failed: $e');
     }
   }
 
+  void _populateFields(Map<String, dynamic> dataMap) {
+    studentIdController.text = dataMap['Student Number'] ?? '';
+    List<dynamic> scores = dataMap['scores'] ?? [];
+    q1Controller.text = scores.isNotEmpty ? scores[0].toString() : '';
+    q2Controller.text = scores.length > 1 ? scores[1].toString() : '';
+    q3Controller.text = scores.length > 2 ? scores[2].toString() : '';
+    q4Controller.text = scores.length > 3 ? scores[3].toString() : '';
+    totalController.text = dataMap['Total'] ?? '';
+  }
+
   Future<void> _takePicture() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
         throw Exception("No cameras available");
       }
-    final firstCamera = cameras.first;
+      final firstCamera = cameras.first;
 
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TakePictureScreen(camera: firstCamera),
-      ),
-    );
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TakePictureScreen(camera: firstCamera),
+        ),
+      );
 
-    if (result != null) {
-      setState(() {
-        _imageFile = result;
-      });
+      if (result != null) {
+        setState(() {
+          _imageFile = result;
+        });
 
-      List<int> imagesByte = File(_imageFile!.path).readAsBytesSync();
-      base64String = base64Encode(imagesByte);
-      _uploadImage(base64String!);
+        List<int> imagesByte = File(_imageFile!.path).readAsBytesSync();
+        base64String = base64Encode(imagesByte);
+        await _uploadImage(base64String!);
+      }
+    } catch (e) {
+      print('Failed to take picture: $e');
     }
   }
 
@@ -209,7 +234,118 @@ class _EnterGradePageState extends State<EnterGradePage> {
                   return null;
                 },
               ),
-            if (_imageFile != null) Image.file(_imageFile!),
+            if (_imageFile != null)
+              Column(
+                children: [
+                  SizedBox(height: 16),
+                  Table(
+                    border: TableBorder.all(),
+                    columnWidths: const {
+                      0: FlexColumnWidth(2),
+                      1: FlexColumnWidth(1),
+                      2: FlexColumnWidth(1),
+                      3: FlexColumnWidth(1),
+                      4: FlexColumnWidth(1),
+                      5: FlexColumnWidth(1),
+                    },
+                    children: [
+                      const TableRow(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Student ID'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Q1'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Q2'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Q3'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Q4'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text('Total'),
+                          ),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: studentIdController,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: q1Controller,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: q2Controller,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: q3Controller,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: q4Controller,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: TextField(
+                              controller: totalController,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        ResponseImageArray.add({
+                          'Student Number': studentIdController.text,
+                          'scores': [
+                            int.tryParse(q1Controller.text) ?? 0,
+                            int.tryParse(q2Controller.text) ?? 0,
+                            int.tryParse(q3Controller.text) ?? 0,
+                            int.tryParse(q4Controller.text) ?? 0
+                          ],
+                          'Total': totalController.text
+                        });
+                      });
+                      // Clear controllers
+                      studentIdController.clear();
+                      q1Controller.clear();
+                      q2Controller.clear();
+                      q3Controller.clear();
+                      q4Controller.clear();
+                      totalController.clear();
+                    },
+                    child: Text('Save'),
+                  ),
+                ],
+              ),
             if (detectedTexts != null)
               Expanded(
                 child: SingleChildScrollView(
@@ -220,10 +356,10 @@ class _EnterGradePageState extends State<EnterGradePage> {
                 ),
               ),
             SizedBox(height: 16), // Boşluk eklemek için
-            if (_categorizedGrades.isNotEmpty)
+            if (_categorizedGrades.isNotEmpty || ResponseImageArray.isNotEmpty)
               Expanded(
                 child: SingleChildScrollView(
-                  child: _buildGradesTable(_categorizedGrades),
+                  child: _buildGradesTable(_categorizedGrades, ResponseImageArray),
                 ),
               ),
           ],
@@ -259,43 +395,64 @@ class _EnterGradePageState extends State<EnterGradePage> {
     }).toList();
   }
 
-  Widget _buildGradesTable(Map<int, List<int>> categorizedGrades) {
-    return Table(
-      border: TableBorder.all(),
-      children: [
-        const TableRow(
+  Widget _buildGradesTable(Map<int, List<int>> categorizedGrades, List<Map<String, dynamic>> responseImageArray) {
+    List<TableRow> rows = [
+      const TableRow(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'STUDENT ID',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text(
+              'SCORES',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    ];
+
+    rows.addAll(categorizedGrades.entries.map((entry) {
+      return TableRow(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(entry.key.toString()),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(entry.value.join(', ')),
+          ),
+        ],
+      );
+    }).toList());
+
+    if (responseImageArray.isNotEmpty) {
+      var responseData = responseImageArray.first;
+      rows.add(
+        TableRow(
           children: [
             Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'STUDENT ID',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              padding: const EdgeInsets.all(8.0),
+              child: Text(responseData['Student Number'].toString()),
             ),
             Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'SCORES',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              padding: const EdgeInsets.all(8.0),
+              child: Text((responseData['scores'] as List<dynamic>).join(', ')),
             ),
           ],
         ),
-        ...categorizedGrades.entries.map((entry) {
-          return TableRow(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(entry.key.toString()),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(entry.value.join(', ')),
-              ),
-            ],
-          );
-        }).toList(),
-      ],
+      );
+    }
+
+    return Table(
+      border: TableBorder.all(),
+      children: rows,
     );
   }
 }

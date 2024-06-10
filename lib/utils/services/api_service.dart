@@ -23,9 +23,9 @@ Future<String?> getUserId() async {
 
 
 class APIConstants {
-  static const String baseURL = 'http://localhost:3030/api/';
-  //static const String baseURL = 'http://169.254.123.91:3030/api/';   //tel ip
-  //static const String baseURL = 'http://192.168.1.106:3030/api/';     //ev ip
+  //static const String baseURL = 'http://localhost:3030/api/';
+  //static const String baseURL = 'http://169.254.241.104:3030/api/';   //tel ip
+  static const String baseURL = 'http://169.254.144.196:3030/api/';     //ev ip
 }
 
 class VisionAPIService {
@@ -35,100 +35,99 @@ class VisionAPIService {
 
   VisionAPIService();
 
-  Future<List?> detectText(String base64Image) async {
-    final String url = 'https://vision.googleapis.com/v1/images:annotate?key=$apiKey';
-    //const String apiUrl = 'http://localhost:3030/';
-  
-    try {
-      final http.Response response = await http.post(
-        Uri.parse(url),
-        headers: <String, String>{
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(<String, dynamic>{
-          'requests': [
-            {
-              'image': {'content': base64Image},
-              'features': [{'type': 'TEXT_DETECTION'}]
-            }
-          ]
-        }),
-      );
-      if (response.statusCode == 200) {
-        // Başarılı istek
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        final String extractedText = data['responses'][0]['fullTextAnnotation']['text'];
-        return processResponse(extractedText);
-      } else {
-        // Hata durumu
-        print('Hata kodu: ${response.statusCode}');
-        return null;
+ Future<Map<String, dynamic>?> detectText(String base64Image) async {
+  final String url = 'https://vision.googleapis.com/v1/images:annotate?key=$apiKey';
+
+  try {
+    final http.Response response = await http.post(
+      Uri.parse(url),
+      headers: <String, String>{
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(<String, dynamic>{
+        'requests': [
+          {
+            'image': {'content': base64Image},
+            'features': [{'type': 'TEXT_DETECTION'}]
+          }
+        ]
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // Başarılı istek
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      final String extractedText = data['responses'][0]['fullTextAnnotation']['text'];
+      print(extractedText);
+      // İşlem sonrası veri haritasını oluştur
+      Map<String, dynamic> dataMap = {
+        'Student Number': '',
+        'scores': [],
+        'Total': ''
+      };
+
+      // Eğer response boşsa veya null ise boş bir map döndür
+      if (extractedText.isEmpty) {
+        return dataMap;
       }
-    } catch (e) {
-      // Hata oluştu
-      print('Hata: $e');
+
+      // Response'ı satır bazında ayır
+      List<String> lines = extractedText.split('\n');
+
+      // Verileri işle ve istediğin formata dönüştür
+      bool isReadingScores = false;
+      List<String?> scores = [];
+      for (int i = 0; i < lines.length; i++) {
+        String line = lines[i].trim(); // Satır başı ve sonundaki boşlukları temizle
+
+        if (line.contains('Student Number')) {
+          dataMap['Student Number'] = line.replaceAll('Student Number', '').trim(); // Öğrenci numarasını ayıkla ve ekle
+          continue;
+        }
+
+        if (line.contains('Grades')) {
+          isReadingScores = true; // 'Grades' satırından sonraki satırları scores olarak oku
+          continue;
+        }
+
+        if (line.contains('Total:')) {
+          dataMap['Total'] = line.split(':')[1].trim(); // Total puanını ekle
+          isReadingScores = false;
+          continue;
+        }
+
+        if (isReadingScores) {
+          // Q ile başlayan satırları belirleyin
+          if (line.startsWith('Q')) {
+            // Mevcut Q numarasını bulun
+            int qNumber = int.parse(line.split(':')[0].substring(1));
+            
+            // Q numarasına kadar olan boşlukları doldur
+            while (scores.length < qNumber) {
+              scores.add(null);
+            }
+          } else if (scores.isNotEmpty) {
+            // Son eklenen Q numarasının değerini güncelle
+            scores[scores.length - 1] = line;
+          }
+        }
+      }
+
+      dataMap['scores'] = scores.map((e) => e == null ? 0 : int.parse(e)).toList();
+
+      print(dataMap);
+      return dataMap;
+    } else {
+      // Hata durumu
+      print('Hata kodu: ${response.statusCode}');
       return null;
     }
+  } catch (e) {
+    // Hata oluştu
+    print('Hata: $e');
+    return null;
   }
-
-
-
-  List<dynamic> processResponse(String? responseText) {
-  List<dynamic> dataList = [];
-
-  print('res: $responseText');
-
-  // Eğer response boşsa veya null ise boş bir liste döndür
-  if (responseText == null || responseText.isEmpty) {
-    return dataList;
-  }
-
-  // Response'ı satır bazında ayır
-  List<String> lines = responseText.split('\n');
-
-  // Verileri işle ve istediğin formata dönüştür
-  bool isReadingScores = false;
-  bool isReadingGrades = false;
-  List<String> questionNumbers = [];
-  List<String> grades = [];
-  String? studentNumber;
-  String? totalScore;
-  for (String line in lines) {
-    if (line.toLowerCase().contains('not')) {
-      isReadingScores = false;
-      isReadingGrades = true; // 'NOT' satırından sonraki satırları grades olarak oku
-      continue; // 'NOT' satırını eklemiyoruz, sonrasındaki satırları ekleyeceğiz
-    }
-
-    if (isReadingScores) {
-      questionNumbers.add(line);
-    }
-
-    if (isReadingGrades) {
-      grades.add(line);
-    }
-
-    if (line.toLowerCase().contains('soru')) {
-      isReadingScores = true;
-    }
-  }
-
-  if (lines.isNotEmpty) {
-    studentNumber = lines.first; // İlk satır öğrenci numarası
-  }
-
-  if (lines.isNotEmpty) {
-    totalScore = lines.last; // Son satır 'Total' puanı
-  }
-
-  dataList.add(studentNumber); // Öğrenci numarasını ekle
-  dataList.add(questionNumbers); // Soru numaralarını ekle
-  dataList.add(grades); // Grades
-  dataList.add(totalScore); // Total puanını ekle
-  print(dataList);
-  return dataList;
 }
-
 
   Future<List<dynamic>?> fetchCourses() async {
     const String apiUrl = '${APIConstants.baseURL}courses/course-show';
@@ -177,7 +176,7 @@ class VisionAPIService {
   }
   
   Future<List<dynamic>?> fetchExam(String selecttedId) async {
-    final String apiUrl = '${APIConstants.baseURL}exam/exam-show';
+    const String apiUrl = '${APIConstants.baseURL}exam/exam-show';
 
     String? userToken = await getUserToken();
 
@@ -271,7 +270,7 @@ class VisionAPIService {
 
 
   Future<Map<String, dynamic>?> fetchUserProfile() async {
-    final String apiUrl = '${APIConstants.baseURL}userProfile';
+    const String apiUrl = '${APIConstants.baseURL}userProfile';
     //const String apiUrl = 'http://172.20.10.2:3030/api/userProfile';
 
     
@@ -317,7 +316,7 @@ class VisionAPIService {
 
   Future<void> createGrade(String examId, String studentId, List<int> scores) async {
     String? userToken = await getUserToken();
-    final String apiUrl = '${APIConstants.baseURL}grade/grade-create';
+    const String apiUrl = '${APIConstants.baseURL}grade/grade-create';
 
     if (userToken == null) {
       print('Token bulunamadı.');
