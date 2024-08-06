@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:scanitu/Pages/Profile/profile.dart' as profile;
 import 'package:scanitu/Pages/Courses/course.dart';
+import 'package:scanitu/Pages/Courses/courseSingle.dart';
+import 'package:scanitu/Pages/Profile/profile.dart' as profile;
 import 'package:scanitu/utils/services/api_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -12,22 +13,23 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.userName,
     required this.userImage,
-    required this.courses, String? userToken,
+    required this.courses,
+    String? userToken,
   });
 
   @override
-  // ignore: library_private_types_in_public_api
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   final VisionAPIService _visionAPIService = VisionAPIService();
+
   Map<String, dynamic> _userProfile = {};
   List<dynamic>? fetchedCourses;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     fetchUserProfileData();
     _loadCoursesFromAPI();
   }
@@ -39,9 +41,10 @@ class _HomePageState extends State<HomePage> {
         _userProfile = userProfile['userProfile'];
       });
     } else {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kullanıcı bilgileri alınırken bir hata oluştu')),
+        const SnackBar(
+          content: Text('Kullanıcı bilgileri alınırken bir hata oluştu'),
+        ),
       );
     }
   }
@@ -53,12 +56,15 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  
+
   @override
   Widget build(BuildContext context) {
     final String userName = _userProfile['firstLastName'] ?? widget.userName;
     final String userImage = _userProfile['userImage'] ?? widget.userImage;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 4, 4, 67),
         title: const Text(
@@ -67,12 +73,11 @@ class _HomePageState extends State<HomePage> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            flex: 1,
-            child: GestureDetector(
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
@@ -86,11 +91,11 @@ class _HomePageState extends State<HomePage> {
               },
               child: Container(
                 color: Colors.grey[200],
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(40.0),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      //backgroundImage: AssetImage(userImage),
+                      backgroundImage: NetworkImage(userImage),
                       radius: 30,
                     ),
                     const SizedBox(width: 20),
@@ -114,52 +119,79 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 20), // Boşluk eklemek için SizedBox kullanımı
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20.0),
-            child: Text(
-              'DERSLERİM',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            const SizedBox(height: 20), // Boşluk eklemek için SizedBox kullanımı
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: InkWell(
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CoursePage(course: {}),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadCoursesFromAPI();
+                  }
+                },
+                child: const Row(
+                  children: [
+                    Text(
+                      'DERSLERİM',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(width: 16), // Add some spacing between the text and the icon
+                    Icon(Icons.arrow_forward, size: 24),
+                  ],
+                ),
+              ),
             ),
-          ),
-          Expanded(
-            flex: 4,
-            child: fetchedCourses == null
-                ? const Center(child: CircularProgressIndicator())
-                : fetchedCourses!.isEmpty
-                    ? const Center(child: Text('Henüz kurs bulunmamaktadır.'))
-                    : ListView.builder(
-                        itemCount: fetchedCourses!.length,
-                        itemBuilder: (context, index) {
-                          final course = fetchedCourses![index];
-                          return ListTile(
-                            title: Row(
+            Container(
+              height: 300, // Set a fixed height for the course list
+              child: fetchedCourses == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : fetchedCourses!.isEmpty
+                      ? const Center(child: Text('Henüz kurs bulunmamaktadır.'))
+                      : ListView.builder(
+                          itemCount: fetchedCourses!.length,
+                          itemBuilder: (context, index) {
+                            final course = fetchedCourses![index];
+                            return Column(
                               children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(course['courseCode'].toString()), // Ensure it's a String
+                                InkWell(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CourseSinglePage(course: course),
+                                      ),
+                                    );
+                                  },
+                                  child: ListTile(
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(course['courseCode'].toString()), // Ensure it's a String
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          flex: 3,
+                                          child: Text(course['courseName'] ?? 'Ders İsmi Yok'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(course['courseName'] ?? 'Ders İsmi Yok'),
-                                ),
+                                const Divider(), // This adds a line under each ListTile
                               ],
-                            ),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const CoursePage(),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-          ),
-        ],
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }

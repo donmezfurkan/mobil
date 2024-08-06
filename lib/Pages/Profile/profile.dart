@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:scanitu/Pages/Profile/aboutApp.dart';
 import 'package:scanitu/utils/services/api_service.dart'; // VisionAPIService'yi içe aktardık
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:scanitu/Pages/Login/login.dart'; // Hakkında sayfasını içe aktardık
 
 class ProfilePage extends StatefulWidget {
   final String userName;
@@ -33,6 +36,18 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _logout(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userToken'); // Remove the userToken
+    await prefs.remove('userName'); // Remove the userName
+    await prefs.setBool('isLoggedIn', false);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final String userName = _userProfile['firstLastName'] ?? "John Doe";
@@ -40,36 +55,88 @@ class _ProfilePageState extends State<ProfilePage> {
     final String userImage = _userProfile['userImage'] ?? "assets/profile_image.png";
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 4, 4, 67),
         title: const Text('Profil Sayfası', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 50,
-              //backgroundImage: AssetImage(userImage),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundImage: AssetImage(userImage),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  userName,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  userEmail,
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 30),
+                const Text(
+                  'Profil sayfası içeriği burada olacak.',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            Text(
-              userName,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              userEmail,
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Profil sayfası içeriği burada olacak.',
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.person),
+            title: Text('Profil Bilgilerini Güncelle'),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () {
+              // Profil güncelleme sayfasına yönlendirme kodu buraya gelecek
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.language),
+            title: Text('Dil Seçimi'),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () {
+              // Dil seçimi sayfasına yönlendirme kodu buraya gelecek
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.lock),
+            title: Text('Gizlilik ve Güvenlik'),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () {
+              // Gizlilik ve güvenlik sayfasına yönlendirme kodu buraya gelecek
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.info),
+            title: Text('Hakkında'),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AboutPage()), // Hakkında sayfasına yönlendirme
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.logout),
+            title: Text('Çıkış Yap'),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () => _logout(context),
+          ),
+        ],
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:jwt_decode/jwt_decode.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -34,9 +35,8 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        
         //Uri.parse('http://169.254.241.104:3030/api/auth/login'),
-        Uri.parse('http://169.254.144.196:3030/api/auth/login'),
+        Uri.parse('http://169.254.40.200:3030/api/auth/login'),
         //Uri.parse('http://localhost:3030/api/auth/login'),
         headers: <String, String>{
           'Content-Type': 'application/json',
@@ -49,20 +49,18 @@ class _LoginPageState extends State<LoginPage> {
 
         Map<String, dynamic> payload = Jwt.parseJwt(token);
         String userId = payload['id'];
-        
+
         final SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString("userToken", jsonDecode(response.body)["token"]);
         await prefs.setString("userName", username);
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userId', userId); // Kullanıcının giriş yaptığını kaydet
+        await prefs.setString(
+            'userId', userId); // Kullanıcının giriş yaptığını kaydet
 
         print('Login successful. Token: ${response.body}');
         message = 'Login successful. Token: ${response.body}';
         error = false;
 
-        
-        
-        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => MyApp()),
@@ -80,6 +78,15 @@ class _LoginPageState extends State<LoginPage> {
       error = true;
 
       _showErrorDialog(message);
+    }
+  }
+
+  final String samlLoginUrl = "https://girisv3.itu.edu.tr";
+  void _launchURL() async {
+    if (await canLaunch(samlLoginUrl)) {
+      await launch(samlLoginUrl);
+    } else {
+      throw 'Could not launch $samlLoginUrl';
     }
   }
 
@@ -106,16 +113,29 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Color.fromARGB(255, 134, 191, 249)],
+            stops: [0.0, 1.0],
+          ),
+        ),
+      child: Stack(
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 32.0, right: 64.0, left: 64.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Image.asset(
-                  'assets/images/logo_inline.png',
-                  height: 60,
+                const Text(
+                  'SCANITU',
+                  style: TextStyle(
+                    fontSize: 42.0, // Set the font size
+                    fontWeight: FontWeight.bold,
+                    color: Color.fromARGB(255, 44, 44, 117)// Set the color to blue
+                  ),
                 ),
                 const SizedBox(height: 60.0),
                 TextField(
@@ -124,6 +144,7 @@ class _LoginPageState extends State<LoginPage> {
                     prefixIcon: Icon(Icons.account_circle),
                     border: OutlineInputBorder(),
                     labelText: 'Username',
+                    hoverColor: Colors.white
                   ),
                 ),
                 const SizedBox(height: 16.0),
@@ -137,14 +158,33 @@ class _LoginPageState extends State<LoginPage> {
                   obscureText: true,
                 ),
                 const SizedBox(height: 64.0),
-                FilledButton(
+                ElevatedButton(
                   onPressed: _login,
-                  child: const Text('Login'),
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.all(const Color.fromARGB(255, 4, 4, 67))
+                  ),
+                  child: const Text('Login',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18.0),
+                    ),
+                ),
+                ElevatedButton(
+                  onPressed: _launchURL,
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.all(Colors.white)
+                  ),
+                  child: const Text('İTÜ Giriş',
+                  style: TextStyle(
+                    color: Color.fromARGB(255, 4, 4, 67),
+                    fontSize: 18.0),
+                    ),
                 ),
               ],
             ),
           ),
         ],
+      ),
       ),
     );
   }

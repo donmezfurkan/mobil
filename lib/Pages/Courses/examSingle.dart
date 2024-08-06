@@ -1,0 +1,557 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:scanitu/utils/services/api_service.dart';
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' show join;
+import 'package:path_provider/path_provider.dart';
+
+class ExamDetailPage extends StatefulWidget {
+  final String courseId;
+  final String examId;
+  final String examName;
+  final Map<String, dynamic> exam;
+
+  const ExamDetailPage(
+      {Key? key,
+      required this.courseId,
+      required this.examId,
+      required this.examName,
+      required this.exam})
+      : super(key: key);
+
+  @override
+  _ExamDetailPageState createState() => _ExamDetailPageState();
+}
+
+class _ExamDetailPageState extends State<ExamDetailPage> {
+  final VisionAPIService _visionAPIService = VisionAPIService();
+  List<Map<String, dynamic>> students = [];
+  bool _isLoading = true;
+  bool _isEmpty = false;
+
+  TextEditingController studentIdController = TextEditingController();
+  TextEditingController totalController = TextEditingController();
+  List<TextEditingController> questionControllers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchGrades();
+  }
+
+  Future<void> _fetchGrades() async {
+    try {
+      final response = await _visionAPIService.gradeShow(widget.examId);
+      if (response != null &&
+          response['gradeArray'] != null &&
+          response['gradeArray'].isNotEmpty) {
+        setState(() {
+          students = List<Map<String, dynamic>>.from(response['gradeArray']);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isEmpty = true;
+          _isLoading = false;
+        });
+      }
+    } catch (error) {
+      setState(() {
+        _isEmpty = true;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notlar alınırken bir hata oluştu')),
+      );
+    }
+  }
+
+  void _editStudentScores(Map<String, dynamic> student) {
+    TextEditingController studentNumberController =
+        TextEditingController(text: student['studentId'].toString());
+    List<TextEditingController> scoreControllers = student['scores']
+        .map<TextEditingController>(
+            (score) => TextEditingController(text: score.toString()))
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: Text('Not Düzenle - ${student['studentId']}'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: studentNumberController,
+                  decoration:
+                      const InputDecoration(labelText: 'Öğrenci Numarası'),
+                ),
+                const SizedBox(height: 10),
+                for (int i = 0; i < scoreControllers.length; i++)
+                  TextField(
+                    controller: scoreControllers[i],
+                    decoration:
+                        InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
+                    keyboardType: TextInputType.number,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  student['studentId'] =
+                      int.parse(studentNumberController.text);
+                  student['scores'] = scoreControllers
+                      .map((controller) => int.parse(controller.text))
+                      .toList();
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('Kaydet',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('İptal',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _takePicture() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        throw Exception("No cameras available");
+      }
+      final firstCamera = cameras.first;
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TakePictureScreen(camera: firstCamera),
+        ),
+      );
+
+      if (result != null) {
+        List<int> imagesByte = File(result.path).readAsBytesSync();
+        String base64String = base64Encode(imagesByte);
+        await _uploadImage(base64String);
+      }
+    } catch (e) {
+      print('Failed to take picture: $e');
+    }
+  }
+
+  Future<void> _uploadImage(String base64Image) async {
+    try {
+      Map<String, dynamic>? dataMap =
+          await _visionAPIService.detectText(base64Image);
+      if (dataMap != null) {
+        _populateFields(dataMap);
+      }
+    } catch (e) {
+      print('Image upload failed: $e');
+      _showErrorDialog(context, 'Image upload failed: $e');
+    }
+  }
+
+  void _populateFields(Map<String, dynamic> dataMap) {
+    studentIdController.text = dataMap['Student Number'] ?? '';
+    List<dynamic> scores = dataMap['scores'] ?? [];
+    questionControllers =
+        List.generate(scores.length, (index) => TextEditingController());
+    for (int i = 0; i < scores.length; i++) {
+      questionControllers[i].text = scores[i].toString();
+    }
+    totalController.text = dataMap['Total'] ?? '';
+    _showDetectedDataPopup();
+  }
+
+  Future<void> _saveGrade() async {
+    Map<String, dynamic> gradeData = {
+      'Student Number': studentIdController.text,
+      'scores': questionControllers
+          .map((controller) => int.tryParse(controller.text) ?? 0)
+          .toList(),
+      'Total': totalController.text
+    };
+
+    try {
+      final response = await _visionAPIService.createGrade(widget.examId, gradeData);
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not başarıyla kaydedildi')),
+        );
+        Navigator.of(context).pop();
+        _fetchGrades(); // Öğrenci tablosunu yenile
+      } else {
+        print('Not kaydedilemedi: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Not kaydedilemedi: ${response.statusCode}')),
+        );
+        _showErrorDialog(context, 'Not kaydedilemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Not kaydedilemedi: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Not kaydedilemedi: $e')),
+      );
+      _showErrorDialog(context, 'Not kaydedilemedi: $e');
+    }
+  }
+
+  void _showDetectedDataPopup() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text('Detected Data'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: studentIdController,
+                  decoration:
+                      const InputDecoration(labelText: 'Öğrenci Numarası'),
+                ),
+                const SizedBox(height: 10),
+                for (int i = 0; i < questionControllers.length; i++)
+                  TextField(
+                    controller: questionControllers[i],
+                    decoration:
+                        InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
+                    keyboardType: TextInputType.number,
+                  ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: totalController,
+                  decoration: const InputDecoration(labelText: 'Total Puan'),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saveGrade,
+              child: const Text('Kaydet',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('İptal',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    int questionCount = int.parse(widget.exam['questionNumber'].toString());
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 4, 4, 67),
+        title: Text(widget.examName,
+            style: const TextStyle(fontSize: 24, color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Column(
+                      children: [
+                        _isEmpty
+                            ? const Center(
+                                child: Text('Herhangi bir not oluşturulmamıştır.'))
+                            : Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth),
+                                    child: DataTable(
+                                      columns: [
+                                        const DataColumn(
+                                            label: Text('Öğrenci Numarası')),
+                                        for (int i = 0; i < questionCount; i++)
+                                          DataColumn(label: Text('Soru ${i + 1}')),
+                                        const DataColumn(label: Text('Düzenle')),
+                                      ],
+                                      rows: students.map((student) {
+                                        List<DataCell> cells = [
+                                          DataCell(Text(
+                                              student['studentId'].toString())),
+                                          for (int i = 0; i < questionCount; i++)
+                                            DataCell(Text(
+                                                student['scores'][i]?.toString() ??
+                                                    '')),
+                                          DataCell(
+                                            IconButton(
+                                              icon: const Icon(Icons.edit),
+                                              onPressed: () =>
+                                                  _editStudentScores(student),
+                                            ),
+                                          ),
+                                        ];
+
+                                        // Ensure each row has the same number of cells as columns
+                                        while (cells.length < questionCount + 2) {
+                                          cells.insert(cells.length - 1,
+                                              const DataCell(Text('')));
+                                        }
+
+                                        return DataRow(cells: cells);
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: _takePicture,
+                          style: ButtonStyle(
+                            backgroundColor: MaterialStateProperty.all(
+                                const Color.fromARGB(255, 4, 4, 67)),
+                          ),
+                          child: const Icon(Icons.camera_alt, color: Colors.white),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class TakePictureScreen extends StatefulWidget {
+  final CameraDescription camera;
+
+  const TakePictureScreen({Key? key, required this.camera}) : super(key: key);
+
+  @override
+  TakePictureScreenState createState() => TakePictureScreenState();
+}
+
+class TakePictureScreenState extends State<TakePictureScreen> {
+  late CameraController _controller;
+  late Future<void> _initializeControllerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CameraController(
+      widget.camera,
+      ResolutionPreset.high,
+    );
+    _initializeControllerFuture = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _takePicture() async {
+    try {
+      await _initializeControllerFuture;
+
+      final XFile image = await _controller.takePicture();
+
+      final File croppedImage = await _cropImage(File(image.path));
+
+      Navigator.pop(context, croppedImage);
+    } catch (e) {
+      print(e);
+      _showErrorDialog(context, 'Failed to take picture: $e');
+    }
+  }
+
+  Future<File> _cropImage(File imageFile) async {
+    final bytes = await imageFile.readAsBytes();
+    final img.Image originalImage = img.decodeImage(bytes)!;
+
+    const int targetWidth = 400;
+    const int targetHeight = 100;
+
+    // Resmi orantılı olarak yeniden boyutlandır
+    img.Image resizedImage;
+    if ((originalImage.width / originalImage.height) >
+        (targetWidth / targetHeight)) {
+      // Genişlik fazla ise yükseklik sabit kalacak şekilde boyutlandır
+      resizedImage = img.copyResize(
+        originalImage,
+        height: targetHeight,
+      );
+    } else {
+      // Yükseklik fazla ise genişlik sabit kalacak şekilde boyutlandır
+      resizedImage = img.copyResize(
+        originalImage,
+        width: targetWidth,
+      );
+    }
+
+    // Merkezi kırpma işlemi
+    final int x = (resizedImage.width - targetWidth) ~/ 2;
+    final int y = (resizedImage.height - targetHeight) ~/ 2;
+
+    final img.Image croppedImage = img.copyCrop(
+      resizedImage,
+      x: x,
+      y: y,
+      width: targetWidth,
+      height: targetHeight,
+    );
+
+    final Directory directory = await getApplicationDocumentsDirectory();
+    final String path = join(directory.path, '${DateTime.now()}.png');
+    final File croppedFile = File(path)
+      ..writeAsBytesSync(img.encodePng(croppedImage));
+
+    return croppedFile;
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 4, 4, 67),
+        title: const Text(
+          'Take a picture',
+          style: TextStyle(color: Colors.white),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: FutureBuilder<void>(
+        future: _initializeControllerFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: CameraPreview(_controller),
+                ),
+                Center(
+                  child: Container(
+                    width: 400,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      border: Border.all(color: Colors.white, width: 4),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: (MediaQuery.of(context).size.height - 100) / 2 + 75,
+                  child: Container(color: Colors.black54),
+                ),
+                Positioned(
+                  top: (MediaQuery.of(context).size.height - 100) / 2 + 75,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(color: Colors.black54),
+                ),
+                Positioned(
+                  top: (MediaQuery.of(context).size.height - 100) / 2 + 50,
+                  left: 0,
+                  bottom: (MediaQuery.of(context).size.height - 100) / 2 + 50,
+                  child: Container(
+                      color: Colors.black54,
+                      width: (MediaQuery.of(context).size.width - 400) / 2),
+                ),
+                Positioned(
+                  top: (MediaQuery.of(context).size.height - 100) / 2 + 50,
+                  right: 0,
+                  bottom: (MediaQuery.of(context).size.height - 100) / 2 + 50,
+                  child: Container(
+                      color: Colors.black54,
+                      width: (MediaQuery.of(context).size.width - 400) / 2),
+                ),
+              ],
+            );
+          } else {
+            return const Center(child: CircularProgressIndicator());
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _takePicture,
+        child: const Icon(Icons.camera),
+      ),
+    );
+  }
+}

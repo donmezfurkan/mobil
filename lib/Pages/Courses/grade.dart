@@ -38,11 +38,8 @@ class _EnterGradePageState extends State<EnterGradePage> {
 
   // Input form controllers
   TextEditingController studentIdController = TextEditingController();
-  TextEditingController q1Controller = TextEditingController();
-  TextEditingController q2Controller = TextEditingController();
-  TextEditingController q3Controller = TextEditingController();
-  TextEditingController q4Controller = TextEditingController();
   TextEditingController totalController = TextEditingController();
+  List<TextEditingController> questionControllers = [];
 
   @override
   void initState() {
@@ -62,10 +59,14 @@ class _EnterGradePageState extends State<EnterGradePage> {
   }
 
   Future<void> _loadExamsFromAPI() async {
+    try {
     List<dynamic>? exams = (await _visionAPIService.fetchExam(selectedCourseId!));
     setState(() {
       fetchedExams = exams;
     });
+    } catch (e) {
+      print('Failed to load exams: $e');
+    }
   }
 
   Future<void> _showGrades() async {
@@ -140,10 +141,9 @@ class _EnterGradePageState extends State<EnterGradePage> {
   void _populateFields(Map<String, dynamic> dataMap) {
     studentIdController.text = dataMap['Student Number'] ?? '';
     List<dynamic> scores = dataMap['scores'] ?? [];
-    q1Controller.text = scores.isNotEmpty ? scores[0].toString() : '';
-    q2Controller.text = scores.length > 1 ? scores[1].toString() : '';
-    q3Controller.text = scores.length > 2 ? scores[2].toString() : '';
-    q4Controller.text = scores.length > 3 ? scores[3].toString() : '';
+    for (int i = 0; i < scores.length; i++) {
+      questionControllers[i].text = scores[i].toString();
+    }
     totalController.text = dataMap['Total'] ?? '';
   }
 
@@ -173,6 +173,30 @@ class _EnterGradePageState extends State<EnterGradePage> {
       }
     } catch (e) {
       print('Failed to take picture: $e');
+    }
+  }
+
+  Future<void> _saveGrade() async {
+    Map<String, dynamic> gradeData = {
+      'Student Number': studentIdController.text,
+      'scores': questionControllers.map((controller) => int.tryParse(controller.text) ?? 0).toList(),
+      'Total': totalController.text
+    };
+
+    try {
+      await _visionAPIService.createGrade(selectedExamId!, gradeData as Map<String, dynamic>);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Grade saved successfully')),
+      );
+      // Clear controllers
+      studentIdController.clear();
+      questionControllers.forEach((controller) => controller.clear());
+      totalController.clear();
+    } catch (e) {
+      print('Failed to save grade: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save grade: $e')),
+      );
     }
   }
 
@@ -218,6 +242,9 @@ class _EnterGradePageState extends State<EnterGradePage> {
                   setState(() {
                     selectedExamId = newValue;
                     _showGrades();
+                    // Soru sayısına göre input alanlarını yeniden oluştur
+                    int questionNumber = fetchedExams!.firstWhere((exam) => exam['_id'] == selectedExamId)['questionNumber'];
+                    questionControllers = List.generate(questionNumber, (index) => TextEditingController());
                   });
                 },
                 items: fetchedExams!.map<DropdownMenuItem<String>>((dynamic examItem) {
@@ -240,38 +267,25 @@ class _EnterGradePageState extends State<EnterGradePage> {
                   SizedBox(height: 16),
                   Table(
                     border: TableBorder.all(),
-                    columnWidths: const {
+                    columnWidths: {
                       0: FlexColumnWidth(2),
-                      1: FlexColumnWidth(1),
-                      2: FlexColumnWidth(1),
-                      3: FlexColumnWidth(1),
-                      4: FlexColumnWidth(1),
-                      5: FlexColumnWidth(1),
+                      for (int i = 0; i < questionControllers.length; i++)
+                        i + 1: FlexColumnWidth(1),
+                      questionControllers.length + 1: FlexColumnWidth(1),
                     },
                     children: [
-                      const TableRow(
+                      TableRow(
                         children: [
-                          Padding(
+                          const Padding(
                             padding: EdgeInsets.all(8.0),
                             child: Text('Student ID'),
                           ),
-                          Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text('Q1'),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text('Q2'),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text('Q3'),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Text('Q4'),
-                          ),
-                          Padding(
+                          for (int i = 0; i < questionControllers.length; i++)
+                            Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Text('Q${i + 1}'),
+                            ),
+                          const Padding(
                             padding: EdgeInsets.all(8.0),
                             child: Text('Total'),
                           ),
@@ -285,30 +299,13 @@ class _EnterGradePageState extends State<EnterGradePage> {
                               controller: studentIdController,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: q1Controller,
+                          for (int i = 0; i < questionControllers.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: TextField(
+                                controller: questionControllers[i],
+                              ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: q2Controller,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: q3Controller,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: TextField(
-                              controller: q4Controller,
-                            ),
-                          ),
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: TextField(
@@ -319,30 +316,10 @@ class _EnterGradePageState extends State<EnterGradePage> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        ResponseImageArray.add({
-                          'Student Number': studentIdController.text,
-                          'scores': [
-                            int.tryParse(q1Controller.text) ?? 0,
-                            int.tryParse(q2Controller.text) ?? 0,
-                            int.tryParse(q3Controller.text) ?? 0,
-                            int.tryParse(q4Controller.text) ?? 0
-                          ],
-                          'Total': totalController.text
-                        });
-                      });
-                      // Clear controllers
-                      studentIdController.clear();
-                      q1Controller.clear();
-                      q2Controller.clear();
-                      q3Controller.clear();
-                      q4Controller.clear();
-                      totalController.clear();
-                    },
-                    child: Text('Save'),
+                    onPressed: _saveGrade,
+                    child: const Text('Save'),
                   ),
                 ],
               ),
@@ -355,7 +332,7 @@ class _EnterGradePageState extends State<EnterGradePage> {
                   ),
                 ),
               ),
-            SizedBox(height: 16), // Boşluk eklemek için
+            const SizedBox(height: 16), // Boşluk eklemek için
             if (_categorizedGrades.isNotEmpty || ResponseImageArray.isNotEmpty)
               Expanded(
                 child: SingleChildScrollView(

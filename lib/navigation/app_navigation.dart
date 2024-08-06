@@ -40,14 +40,14 @@ class NavBar extends StatelessWidget {
             leading: const Icon(Icons.person),
             title: const Text('Profil'),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => profile.ProfilePage(userName: '', userImage: '',)));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const profile.ProfilePage(userName: '', userImage: '',)));
             },
           ),
           ListTile(
             leading: const Icon(Icons.school),
             title: const Text('Sınıflarım'),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => course.CoursePage()));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const course.CoursePage(course: {},)));
             },
           ),
           ListTile(

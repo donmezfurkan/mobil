@@ -17,6 +17,11 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Main Screen Example',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Colors.white, // Ensure the background color is white
+          selectedItemColor: Color.fromARGB(255, 4, 4, 67), // Seçili buton rengi
+          unselectedItemColor: Colors.grey,
+        ),
       ),
       home: const MainScreen(),
     );
@@ -34,9 +39,15 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const HomePage(userName: '', userImage: '', courses: {},),
+    const HomePage(
+      userName: '',
+      userImage: '',
+      courses: {},
+    ),
     const ProfilePage(userName: '', userImage: ''),
-    const CoursePage(),
+    const CoursePage(
+      course: {},
+    ),
     const SettingsPage(),
   ];
 
@@ -50,30 +61,31 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Anasayfa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.book),
-            label: 'Derslerim',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Ayarlar',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: const Color.fromARGB(255, 4, 4, 67), // Seçili buton rengi
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-      ),
+      // bottomNavigationBar: BottomNavigationBar(
+      //   items: const <BottomNavigationBarItem>[
+      //     BottomNavigationBarItem(
+      //       icon: Icon(Icons.home),
+      //       label: 'Anasayfa',
+      //     ),
+      //     BottomNavigationBarItem(
+      //       icon: Icon(Icons.person),
+      //       label: 'Profil',
+      //     ),
+      //     BottomNavigationBarItem(
+      //       icon: Icon(Icons.book),
+      //       label: 'Derslerim',
+      //     ),
+      //     BottomNavigationBarItem(
+      //       icon: Icon(Icons.settings),
+      //       label: 'Ayarlar',
+      //     ),
+      //   ],
+      //   currentIndex: _selectedIndex,
+      //   selectedItemColor: const Color.fromARGB(255, 4, 4, 67), // Seçili buton rengi
+      //   unselectedItemColor: Colors.grey,
+      //   onTap: _onItemTapped,
+      //   backgroundColor: Colors.white, // Background color of the BottomNavigationBar
+      // ),
     );
   }
 }

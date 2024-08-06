@@ -25,6 +25,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 4, 4, 67),
         title: const Text('Ayarlar', style: TextStyle(color: Colors.white)),

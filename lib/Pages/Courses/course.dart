@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:scanitu/Pages/Courses/createExamPage.dart';
-import 'package:scanitu/Pages/Courses/grade.dart';
-import 'package:scanitu/utils/services/api_service.dart'; // Bu import'u eklemeyi unutmayın
+import 'package:scanitu/Pages/Courses/courseCreate.dart';
+import 'package:scanitu/Pages/Courses/courseEdit.dart';
+import 'package:scanitu/utils/services/api_service.dart';
 
 void main() {
   runApp(MyApp());
@@ -15,22 +16,24 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: CoursePage(),
+      home: const CoursePage(
+        course: {},
+      ),
     );
   }
 }
 
 class CoursePage extends StatefulWidget {
-  const CoursePage({Key? key}) : super(key: key);
-
+  final Map<String, dynamic> course;
+  const CoursePage({Key? key, required this.course}) : super(key: key);
   @override
   State<CoursePage> createState() => _CoursePageState();
 }
 
 class _CoursePageState extends State<CoursePage> {
   Map<String, List<Map<String, dynamic>>> courses = {};
-
   final VisionAPIService _visionAPIService = VisionAPIService();
+  String? _selectedCourseId;
 
   @override
   void initState() {
@@ -40,52 +43,142 @@ class _CoursePageState extends State<CoursePage> {
 
   Future<void> _fetchData() async {
     try {
-      List? fetchedCourses = await _visionAPIService.fetchCourses();
+      List<dynamic>? fetchedCourses = await _visionAPIService.fetchCourses();
+      if (fetchedCourses == null || fetchedCourses.isEmpty) {
+        setState(() {
+          courses = {};
+          _selectedCourseId = null;
+        });
+        return;
+      }
+
       Map<String, List<Map<String, dynamic>>> combinedData = {};
 
-      // Tüm dersler için sınavları çek
+      // Fetch exams for all courses
       List<Future<List?>> examFutures = [];
-      for (var course in fetchedCourses!) {
+      for (var course in fetchedCourses) {
+        String courseId = course['_id'];
         String courseName = course['courseName'];
-        combinedData[courseName] = [];
-        examFutures.add(_visionAPIService.fetchExam(course['_id']));
+        combinedData[courseId] = [{'courseName': courseName}];
+        examFutures.add(_visionAPIService.fetchExam(courseId));
       }
-      print(examFutures);
 
-      List? fetchedExamsList = await Future.wait(examFutures);
+      List<dynamic>? fetchedExamsList = await Future.wait(examFutures);
 
-      // Gelen sınavları combinedData'ya ekle
+      // Add fetched exams to combinedData
       for (int i = 0; i < fetchedCourses.length; i++) {
-        var courseName = fetchedCourses[i]['courseName'];
+        var courseId = fetchedCourses[i]['_id'];
         var exams = fetchedExamsList[i];
 
         if (exams != null) {
           for (var exam in exams) {
-            combinedData[courseName]?.add(exam);
+            exam['courseId'] = courseId;
+            combinedData[courseId]?.add(exam);
           }
         }
       }
 
       setState(() {
         courses = combinedData;
+        if (courses.isNotEmpty) {
+          _selectedCourseId = courses.keys.first;
+        } else {
+          _selectedCourseId = null;
+        }
       });
     } catch (error) {
       print('Error fetching data: $error');
     }
   }
 
-  void _addExam(String course, String exam, int questionCount) {
-    setState(() {
-      courses.update(course, (value) {
-        value.add({'exam': exam, 'questionCount': questionCount});
-        return value;
-      });
-    });
+  Future<void> _deleteCourse(String courseId) async {
+    if (courseId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen silmek için bir ders seçin')),
+      );
+      return;
+    }
+
+    final Map<String, dynamic>? success = await _visionAPIService.deleteCourse(courseId);
+
+    if (success != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ders başarıyla silindi')),
+      );
+      await _fetchData(); // Refresh the data
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ders silinirken bir hata oluştu')),
+      );
+    }
+  }
+
+  void _showDeleteConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String? dialogSelectedCourseId = _selectedCourseId;
+        return AlertDialog(
+          title: const Text('Ders Sil'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Silmek istediğiniz dersi seçin:'),
+                  const SizedBox(height: 16.0),
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: dialogSelectedCourseId,
+                    hint: const Text('Ders Seçin'),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        dialogSelectedCourseId = newValue;
+                      });
+                    },
+                    items: courses.entries.map((entry) {
+                      String courseId = entry.key;
+                      String courseName = entry.value.isNotEmpty && entry.value.first.containsKey('courseName')
+                          ? entry.value.first['courseName']
+                          : 'Unknown Course';
+                      return DropdownMenuItem<String>(
+                        value: courseId,
+                        child: Text(courseName),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('İptal'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (dialogSelectedCourseId != null) {
+                  Navigator.of(context).pop();
+                  _deleteCourse(dialogSelectedCourseId!);
+                }
+              },
+              child: const Text('Sil'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _onCourseActionCompleted() async {
+    await _fetchData();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 4, 4, 67),
         title: const Text(
@@ -93,6 +186,12 @@ class _CoursePageState extends State<CoursePage> {
           style: TextStyle(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () async {
+            Navigator.pop(context, true); // Pop with a true result
+          },
+        ),
       ),
       body: Center(
         child: Column(
@@ -100,47 +199,52 @@ class _CoursePageState extends State<CoursePage> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                mainAxisSpacing: 16.0,
+                crossAxisSpacing: 16.0,
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CreateExamPage(
-                              courses: courses,
-                              onAddExam: _addExam,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Text('Sınav Oluştur'),
-                    ),
+                  _buildGridItem(
+                    context,
+                    'Ders Oluştur',
+                    Icons.add,
+                    () async {
+                      bool? result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateCoursePage(),
+                        ),
+                      );
+                      if (result == true) {
+                        _onCourseActionCompleted();
+                      }
+                    },
                   ),
-                  SizedBox(width: 16), // Butonlar arasında boşluk bırakmak için
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => EnterGradePage(courses: courses),
-                          ),
-                        );
-                      },
-                      child: Text('Not Gir'),
-                    ),
+                  _buildGridItem(
+                    context,
+                    'Ders Düzenle',
+                    Icons.edit,
+                    () async {
+                      bool? result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditCoursePage(course: {}),
+                        ),
+                      );
+                      if (result == true) {
+                        _onCourseActionCompleted();
+                      }
+                    },
+                  ),
+                  _buildGridItem(
+                    context,
+                    'Ders Sil',
+                    Icons.delete,
+                    courses.isEmpty ? null : _showDeleteConfirmationDialog,
                   ),
                 ],
               ),
-            ),
-            Expanded(
-              child: courses.isEmpty
-                  ? Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      child: _buildCustomGrid(courses),
-                    ),
             ),
           ],
         ),
@@ -148,57 +252,27 @@ class _CoursePageState extends State<CoursePage> {
     );
   }
 
-  Widget _buildCustomGrid(Map<String, List<Map<String, dynamic>>> courses) {
-    List<Widget> gridItems = [];
-
-    courses.forEach((courseName, exams) {
-      gridItems.add(Container(
+  Widget _buildGridItem(BuildContext context, String title, IconData icon, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.black),
+          color: const Color.fromARGB(255, 4, 4, 67),
+          borderRadius: BorderRadius.circular(10.0),
         ),
-        margin: const EdgeInsets.all(4.0),
         child: Column(
-          
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                courseName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            Container(
-              height: exams.length > 4 ? 250 : exams.length * 25.0, // Sabit yükseklik veriyoruz
-              child: SingleChildScrollView(
-                child: Column(
-                  children: exams.map((exam) {
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        exam['examName'] ?? 'N/A',
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+            Icon(icon, size: 40.0, color: Colors.white),
+            const SizedBox(height: 10.0),
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white, fontSize: 16.0),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
-      ));
-    });
-
-    return GridView.count(
-      crossAxisCount: 2,
-      childAspectRatio: 0.7,
-      shrinkWrap: true,
-      scrollDirection: Axis.vertical,
-      physics: NeverScrollableScrollPhysics(),
-      children: gridItems,
+      ),
     );
   }
 }
