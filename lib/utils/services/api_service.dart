@@ -22,9 +22,9 @@ Future<String?> getUserId() async {
 }
 
 class APIConstants {
-  //static const String baseURL = 'http://localhost:3030/api/';
+  static const String baseURL = 'http://localhost:3030/api/';
   //static const String baseURL = 'http://169.254.241.104:3030/api/';   //tel ip
-  static const String baseURL = 'http://169.254.40.200:3030/api/'; //ev ip
+  //static const String baseURL = 'http://169.254.40.200:3030/api/'; //ev ip
 }
 
 class VisionAPIService {
@@ -133,6 +133,94 @@ class VisionAPIService {
     }
   }
 
+  Future<Map<String, dynamic>?> fetchUserProfile() async {
+    const String apiUrl = '${APIConstants.baseURL}user-profile/getuserProfile';
+    //const String apiUrl = 'http://172.20.10.2:3030/api/userProfile';
+
+    String? userToken = await getUserToken();
+    String? userName = await getUserName();
+
+    if (userToken == null) {
+      print('Token bulunamadı.');
+      return null;
+    }
+
+    Map<String, String> headers = {
+      "Content-Type": "application/json",
+      "token": userToken,
+    };
+    Map<String, String> requestBody = {
+      "userName": userName ?? "",
+    };
+
+    String requestBodyJson = jsonEncode(requestBody);
+    try {
+      final http.Response response = await http.post(
+        Uri.parse(apiUrl),
+        headers: headers,
+        body: requestBodyJson,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        print('Hata kodu: ${response.statusCode}');
+        print('Yanıt: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Hata: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> updateUserProfile(String username, String firstLastName, String email) async {
+    const String apiUrl = '${APIConstants.baseURL}user-profile/editUserProfile';
+    //const String apiUrl = 'http://172.20.10.2:3030/api/userProfile';
+
+    String? userToken = await getUserToken();
+    String? userName = await getUserName();
+    String? id = await getUserId();
+
+    if (userToken == null) {
+      print('Token bulunamadı.');
+      return null;
+    }
+
+    Map<String, String> headers = {
+      "Content-Type": "application/json",
+      "token": userToken,
+    };
+    Map<String, String> requestBody = {
+      "userId": id.toString(),
+      "userName": username,
+      "firstLastName": firstLastName,
+      "email": email,
+    };
+
+    String requestBodyJson = jsonEncode(requestBody);
+    try {
+      final http.Response response = await http.post(
+        Uri.parse(apiUrl),
+        headers: headers,
+        body: requestBodyJson,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        print('Hata kodu: ${response.statusCode}');
+        print('Yanıt: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Hata: $e');
+      return null;
+    }
+  }
+
   Future<List<dynamic>?> fetchCourses() async {
     const String apiUrl = '${APIConstants.baseURL}courses/course-show';
     //const String apiUrl = 'http://172.20.10.2:3030/api/courses/course-show';
@@ -212,7 +300,6 @@ class VisionAPIService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        print(data);
         return data;
       } else {
         print('Hata kodu: ${response.statusCode}');
@@ -259,7 +346,6 @@ class VisionAPIService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        print(data);
         return data;
       } else {
         print('Hata kodu: ${response.statusCode}');
@@ -302,7 +388,6 @@ class VisionAPIService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        print(data);
         return data;
       } else {
         print('Hata kodu: ${response.statusCode}');
@@ -399,7 +484,6 @@ class VisionAPIService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        print(data);
         return data;
       } else {
         print('Hata kodu: ${response.statusCode}');
@@ -488,49 +572,6 @@ class VisionAPIService {
         body: jsonEncode(<String, dynamic>{
           'examId': examId,
         }),
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        print(data);
-        return data;
-      } else {
-        print('Hata kodu: ${response.statusCode}');
-        print('Yanıt: ${response.body}');
-        return null;
-      }
-    } catch (e) {
-      print('Hata: $e');
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>?> fetchUserProfile() async {
-    const String apiUrl = '${APIConstants.baseURL}userProfile';
-    //const String apiUrl = 'http://172.20.10.2:3030/api/userProfile';
-
-    String? userToken = await getUserToken();
-    String? userName = await getUserName();
-
-    if (userToken == null) {
-      print('Token bulunamadı.');
-      return null;
-    }
-
-    Map<String, String> headers = {
-      "Content-Type": "application/json",
-      "token": userToken,
-    };
-    Map<String, String> requestBody = {
-      "userName": userName ?? "",
-    };
-
-    String requestBodyJson = jsonEncode(requestBody);
-    try {
-      final http.Response response = await http.post(
-        Uri.parse(apiUrl),
-        headers: headers,
-        body: requestBodyJson,
       );
 
       if (response.statusCode == 200) {
@@ -659,7 +700,7 @@ class VisionAPIService {
     }
   }
 
-  Future<bool> uploadStudentList(File file) async {
+  Future<bool> uploadStudentList(File file, String courseId) async {
     const String apiUrl = '${APIConstants.baseURL}student/student-create';
     final mimeTypeData = lookupMimeType(file.path)?.split('/');
     if (mimeTypeData == null) {
@@ -668,11 +709,13 @@ class VisionAPIService {
     }
 
     final request = http.MultipartRequest('POST', Uri.parse(apiUrl))
+      ..fields['courseId'] = courseId // courseId ekliyoruz
       ..files.add(await http.MultipartFile.fromPath(
         'file',
         file.path,
         contentType: MediaType(mimeTypeData[0], mimeTypeData[1]),
       ));
+    print(request);
 
     try {
       final response = await request.send();

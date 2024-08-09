@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart';
 import 'package:scanitu/utils/services/api_service.dart';
+import 'package:http/http.dart' as http;
 
 class EditCoursePage extends StatefulWidget {
   final Map<String, dynamic> course;
@@ -35,7 +36,6 @@ class _EditCoursePageState extends State<EditCoursePage> {
     final courses = await _visionAPIService.fetchCourses();
     setState(() {
       _courses = (courses as List<dynamic>).cast<Map<String, dynamic>>();
-      print(_courses);
       if (_courses.isNotEmpty) {
         _selectedCourse = _courses.first;
         _populateFields(_selectedCourse!);
@@ -61,7 +61,7 @@ class _EditCoursePageState extends State<EditCoursePage> {
 
     // Upload the student list file first if it is selected
     if (_selectedFile != null) {
-      final uploadSuccess = await _visionAPIService.uploadStudentList(_selectedFile!);
+      final uploadSuccess = await _uploadFile(_selectedFile!);
       if (!uploadSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Öğrenci listesi yüklenirken bir hata oluştu')),
@@ -118,6 +118,25 @@ class _EditCoursePageState extends State<EditCoursePage> {
     });
   }
 
+  Future<bool> _uploadFile(File file) async {
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('http://localhost:3030/api/student/student-create'), // Your server URL
+    );
+    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+    var streamedResponse = await request.send();
+    var response = await http.Response.fromStream(streamedResponse);
+    if (response.statusCode == 200) {
+      print('File uploaded successfully');
+      return true;
+    } else {
+      print('File upload failed: ${response.statusCode}');
+      print('Response: ${response.body}');
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,10 +153,16 @@ class _EditCoursePageState extends State<EditCoursePage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            const Text(
+              'Düzenlemek İstediğiniz Dersin Bilgilerini Giriniz',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.normal),
+            ),
+            const SizedBox(height: 18.0),
             DropdownButton<Map<String, dynamic>>(
               isExpanded: true,
               value: _selectedCourse,
               hint: const Text('Ders Seçin'),
+              dropdownColor: Colors.white,
               onChanged: (Map<String, dynamic>? newValue) {
                 setState(() {
                   _selectedCourse = newValue!;

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:scanitu/Pages/Profile/aboutApp.dart';
-import 'package:scanitu/utils/services/api_service.dart'; // VisionAPIService'yi içe aktardık
+import 'package:scanitu/Pages/Profile/editProfile.dart';
+import 'package:scanitu/utils/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:scanitu/Pages/Login/login.dart'; // Hakkında sayfasını içe aktardık
+import 'package:scanitu/Pages/Login/login.dart';
 
 class ProfilePage extends StatefulWidget {
   final String userName;
   final String userImage;
+
   const ProfilePage({Key? key, required this.userName, required this.userImage}) : super(key: key);
 
   @override
@@ -38,8 +40,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _logout(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userToken'); // Remove the userToken
-    await prefs.remove('userName'); // Remove the userName
+    await prefs.remove('userToken');
+    await prefs.remove('userName');
     await prefs.setBool('isLoggedIn', false);
 
     Navigator.pushReplacement(
@@ -52,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final String userName = _userProfile['firstLastName'] ?? "John Doe";
     final String userEmail = _userProfile['userName'] ?? "john.doe@example.com";
-    final String userImage = _userProfile['userImage'] ?? "assets/profile_image.png";
+    final String userImage = _userProfile['userImage'] ?? "images/itu.jpeg"; // Updated line
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -83,10 +85,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   style: const TextStyle(fontSize: 16, color: Colors.grey),
                 ),
                 const SizedBox(height: 30),
-                const Text(
-                  'Profil sayfası içeriği burada olacak.',
-                  style: TextStyle(fontSize: 16),
-                ),
               ],
             ),
           ),
@@ -96,7 +94,10 @@ class _ProfilePageState extends State<ProfilePage> {
             title: Text('Profil Bilgilerini Güncelle'),
             trailing: Icon(Icons.arrow_forward),
             onTap: () {
-              // Profil güncelleme sayfasına yönlendirme kodu buraya gelecek
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ProfileUpdatePage(userProfile: _userProfile)),
+              );
             },
           ),
           const Divider(),
@@ -125,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => AboutPage()), // Hakkında sayfasına yönlendirme
+                MaterialPageRoute(builder: (context) => AboutPage()),
               );
             },
           ),

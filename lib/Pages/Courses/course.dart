@@ -120,6 +120,7 @@ class _CoursePageState extends State<CoursePage> {
         String? dialogSelectedCourseId = _selectedCourseId;
         return AlertDialog(
           title: const Text('Ders Sil'),
+          backgroundColor: Colors.white,
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return Column(
@@ -131,6 +132,7 @@ class _CoursePageState extends State<CoursePage> {
                     isExpanded: true,
                     value: dialogSelectedCourseId,
                     hint: const Text('Ders Seçin'),
+                    dropdownColor: Colors.white,
                     onChanged: (String? newValue) {
                       setState(() {
                         dialogSelectedCourseId = newValue;
@@ -154,7 +156,7 @@ class _CoursePageState extends State<CoursePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('İptal'),
+              child: const Text('İptal', style: TextStyle(color: const Color.fromARGB(255, 4, 4, 67)),),
             ),
             TextButton(
               onPressed: () {
@@ -163,7 +165,7 @@ class _CoursePageState extends State<CoursePage> {
                   _deleteCourse(dialogSelectedCourseId!);
                 }
               },
-              child: const Text('Sil'),
+              child: const Text('Sil', style: TextStyle(color: const Color.fromARGB(255, 4, 4, 67))),
             ),
           ],
         );

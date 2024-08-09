@@ -102,6 +102,27 @@ class _EditExamPageState extends State<EditExamPage> {
   }
 
   Future<void> _updateExam() async {
+    int totalScore = int.tryParse(_totalScoreController.text) ?? 0;
+    int sumOfScores = _questionScoreControllers.fold(0, (sum, controller) => sum + (int.tryParse(controller.text) ?? 0));
+
+    if (sumOfScores != totalScore) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text('Hata'),
+          content: const Text('Soru puanlarının toplamı, toplam skora eşit olmalıdır.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Tamam'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     if (_examNameController.text.isEmpty || _questionCountController.text.isEmpty || _totalScoreController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Lütfen tüm alanları doldurun')),
@@ -225,55 +246,57 @@ class _EditExamPageState extends State<EditExamPage> {
         title: const Text('Sınav Düzenle', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const Text(
-              'Sınav Bilgilerini Giriniz',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8.0),
-            TextField(
-              controller: _examNameController,
-              decoration: const InputDecoration(
-                labelText: 'Sınav Adı',
-                border: OutlineInputBorder(),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const Text(
+                'Sınav Bilgilerini Giriniz',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 12.0),
-            TextField(
-              controller: _questionCountController,
-              decoration: const InputDecoration(
-                labelText: 'Soru Sayısı',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 8.0),
+              TextField(
+                controller: _examNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Sınav Adı',
+                  border: OutlineInputBorder(),
+                ),
               ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                int questionCount = int.tryParse(value) ?? 0;
-                setState(() {
-                  _questionScoreControllers = List.generate(questionCount, (_) => TextEditingController());
-                  _selectedAbetCodes = List.generate(questionCount, (_) => []);
-                  _percentageValues = List.filled(questionCount, '0%');
+              const SizedBox(height: 12.0),
+              TextField(
+                controller: _questionCountController,
+                decoration: const InputDecoration(
+                  labelText: 'Soru Sayısı',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  int questionCount = int.tryParse(value) ?? 0;
+                  setState(() {
+                    _questionScoreControllers = List.generate(questionCount, (_) => TextEditingController());
+                    _selectedAbetCodes = List.generate(questionCount, (_) => []);
+                    _percentageValues = List.filled(questionCount, '0%');
+                    _updateCreateButtonState();
+                  });
+                },
+              ),
+              const SizedBox(height: 12.0),
+              TextField(
+                controller: _totalScoreController,
+                decoration: const InputDecoration(
+                  labelText: 'Toplam Puan',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
                   _updateCreateButtonState();
-                });
-              },
-            ),
-            const SizedBox(height: 12.0),
-            TextField(
-              controller: _totalScoreController,
-              decoration: const InputDecoration(
-                labelText: 'Toplam Puan',
-                border: OutlineInputBorder(),
+                },
               ),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                _updateCreateButtonState();
-              },
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.builder(
+              const SizedBox(height: 20),
+              ListView.builder(
+                physics: const NeverScrollableScrollPhysics(), // Disable the scrolling in ListView
+                shrinkWrap: true, // Make the ListView wrap its content
                 itemCount: _questionScoreControllers.length,
                 itemBuilder: (context, index) {
                   return Column(
@@ -320,39 +343,28 @@ class _EditExamPageState extends State<EditExamPage> {
                           ),
                         ),
                       ),
-                      if (_selectedAbetCodes[index].isNotEmpty)
-                        Wrap(
-                          children: _selectedAbetCodes[index].map((code) {
-                            return Chip(
-                              label: Text(code),
-                              onDeleted: () => _removeAbetCode(index, code),
-                            );
-                          }).toList(),
-                        ),
+                      const SizedBox(height: 16.0),
                       const Divider(color: Colors.grey),
                     ],
                   );
                 },
               ),
-            ),
-            const SizedBox(height: 20),
-            Column(
-              children: [
-ElevatedButton(
-              onPressed: _updateExam,
-              style: ButtonStyle(
-                backgroundColor: MaterialStateProperty.all(const Color.fromARGB(255, 4, 4, 67)),
-              ),
-              child: const Text(
-                'Güncelle',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16.0),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _updateExam,
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(const Color.fromARGB(255, 4, 4, 67)),
+                ),
+                child: const Text(
+                  'Güncelle',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.0,
+                  ),
                 ),
               ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

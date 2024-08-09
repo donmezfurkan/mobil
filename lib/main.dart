@@ -41,7 +41,6 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = [
     const HomePage(
       userName: '',
-      userImage: '',
       courses: {},
     ),
     const ProfilePage(userName: '', userImage: ''),
@@ -61,31 +60,6 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      // bottomNavigationBar: BottomNavigationBar(
-      //   items: const <BottomNavigationBarItem>[
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.home),
-      //       label: 'Anasayfa',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.person),
-      //       label: 'Profil',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.book),
-      //       label: 'Derslerim',
-      //     ),
-      //     BottomNavigationBarItem(
-      //       icon: Icon(Icons.settings),
-      //       label: 'Ayarlar',
-      //     ),
-      //   ],
-      //   currentIndex: _selectedIndex,
-      //   selectedItemColor: const Color.fromARGB(255, 4, 4, 67), // Seçili buton rengi
-      //   unselectedItemColor: Colors.grey,
-      //   onTap: _onItemTapped,
-      //   backgroundColor: Colors.white, // Background color of the BottomNavigationBar
-      // ),
     );
   }
 }

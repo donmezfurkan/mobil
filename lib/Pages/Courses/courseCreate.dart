@@ -61,6 +61,11 @@ class _CreateCoursePageState extends State<CreateCoursePage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+            const Text(
+              'Oluşturmak İstediğiniz Dersin Bilgilerini Giriniz',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.normal),
+            ),
+            const SizedBox(height: 24.0),
             TextField(
               controller: _courseCodeController,
               decoration: const InputDecoration(
@@ -73,7 +78,8 @@ class _CreateCoursePageState extends State<CreateCoursePage> {
               controller: _courseNameController,
               decoration: const InputDecoration(
                 labelText: 'Ders Adı',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                ),
               ),
             ),
             const SizedBox(height: 16.0),

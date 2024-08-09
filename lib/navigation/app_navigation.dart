@@ -33,7 +33,7 @@ class NavBar extends StatelessWidget {
             leading: const Icon(Icons.home),
             title: const Text('AnaSayfa'),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage(userName: '', userImage: '', courses: {},)));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const HomePage(userName: '', courses: {},)));
             },
           ),
           ListTile(
@@ -87,7 +87,7 @@ class CameraIconWidget extends StatelessWidget {
         }
       },
       backgroundColor: Colors.blue,
-      child: Icon(Icons.camera_alt),
+      child: const Icon(Icons.camera_alt),
     );
   }
 }

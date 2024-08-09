@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:scanitu/utils/services/api_service.dart';
+import 'package:excel/excel.dart';
+import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' show join;
 import 'package:path_provider/path_provider.dart';
+import 'package:scanitu/utils/services/api_service.dart';
 
 class ExamDetailPage extends StatefulWidget {
   final String courseId;
@@ -190,7 +191,8 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
     };
 
     try {
-      final response = await _visionAPIService.createGrade(widget.examId, gradeData);
+      final response =
+          await _visionAPIService.createGrade(widget.examId, gradeData);
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Not başarıyla kaydedildi')),
@@ -284,6 +286,51 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
     );
   }
 
+  Future<void> _sendEmailWithExcel() async {
+    var excel = Excel.createExcel();
+    var sheet = excel['Sheet1'];
+
+    // Add headers
+    List<String> headers = ['Öğrenci Numarası'];
+    for (int i = 0; i < students[0]['scores'].length; i++) {
+      headers.add('Soru ${i + 1}');
+    }
+
+    // Add data
+    for (var student in students) {
+      List<dynamic> row = [student['studentId']];
+      for (var score in student['scores']) {
+        row.add(score);
+      }
+    }
+
+    // Save the Excel file to a temporary directory
+    final Directory directory = await getTemporaryDirectory();
+    final String path = join(directory.path, 'student_grades.xlsx');
+    File(path).writeAsBytesSync(excel.encode()!);
+
+    // Send email with the Excel file as attachment
+    final Email email = Email(
+      body: 'Öğrenci notları ektedir.',
+      subject: 'Öğrenci Notları',
+      recipients: ['example@example.com'], // replace with actual email
+      attachmentPaths: [path],
+      isHTML: false,
+    );
+
+    try {
+      await FlutterEmailSender.send(email);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('E-posta başarıyla gönderildi')),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('E-posta gönderilirken bir hata oluştu: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     int questionCount = int.parse(widget.exam['questionNumber'].toString());
@@ -295,6 +342,12 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
         title: Text(widget.examName,
             style: const TextStyle(fontSize: 24, color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.email),
+            onPressed: _sendEmailWithExcel,
+          ),
+        ],
       ),
       body: GestureDetector(
         onTap: () {
@@ -307,10 +360,28 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
               : LayoutBuilder(
                   builder: (context, constraints) {
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Text(
+                          'Öğrenci Tablosu',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Notları kaydedilen öğrenciler',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                         _isEmpty
                             ? const Center(
-                                child: Text('Herhangi bir not oluşturulmamıştır.'))
+                                child: Text(
+                                    'Herhangi bir not oluşturulmamıştır.'))
                             : Expanded(
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
@@ -322,17 +393,32 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                                         const DataColumn(
                                             label: Text('Öğrenci Numarası')),
                                         for (int i = 0; i < questionCount; i++)
-                                          DataColumn(label: Text('Soru ${i + 1}')),
-                                        const DataColumn(label: Text('Düzenle')),
+                                          DataColumn(
+                                              label: Text('Soru ${i + 1}')),
+                                        const DataColumn(
+                                            label: Text('Toplam')),
+                                        const DataColumn(
+                                            label: Text('Düzenle')),
                                       ],
                                       rows: students.map((student) {
+                                        // Soru puanlarını topla
+                                        int totalScore = student['scores']
+                                            .fold(0, (sum, score) {
+                                          return sum + (score ?? 0);
+                                        });
+
                                         List<DataCell> cells = [
-                                          DataCell(Text(
-                                              student['studentId'].toString())),
-                                          for (int i = 0; i < questionCount; i++)
+                                          DataCell(Text(student['studentId']
+                                              .toString())),
+                                          for (int i = 0;
+                                              i < questionCount;
+                                              i++)
                                             DataCell(Text(
-                                                student['scores'][i]?.toString() ??
+                                                student['scores'][i]
+                                                        ?.toString() ??
                                                     '')),
+                                          DataCell(
+                                              Text(totalScore.toString())),
                                           DataCell(
                                             IconButton(
                                               icon: const Icon(Icons.edit),
@@ -343,8 +429,9 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                                         ];
 
                                         // Ensure each row has the same number of cells as columns
-                                        while (cells.length < questionCount + 2) {
-                                          cells.insert(cells.length - 1,
+                                        while (cells.length <
+                                            questionCount + 3) {
+                                          cells.insert(cells.length - 2,
                                               const DataCell(Text('')));
                                         }
 
@@ -361,7 +448,8 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                             backgroundColor: MaterialStateProperty.all(
                                 const Color.fromARGB(255, 4, 4, 67)),
                           ),
-                          child: const Icon(Icons.camera_alt, color: Colors.white),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white),
                         ),
                       ],
                     );
@@ -505,9 +593,8 @@ class TakePictureScreenState extends State<TakePictureScreen> {
                   child: Container(
                     width: 400,
                     height: 100,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.transparent,
-                      border: Border.all(color: Colors.white, width: 4),
                     ),
                   ),
                 ),

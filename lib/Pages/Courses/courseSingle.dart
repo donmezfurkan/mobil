@@ -126,17 +126,19 @@ class _CourseSinglePageState extends State<CourseSinglePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           title: const Text('Sınavı Sil'),
-          content: Text('"${exam['examName']}" sınavını silmek istediğinize emin misiniz?'),
+          content: Text('"${exam['examName']}" sınavını silmek istediğinize emin misiniz?', style: TextStyle(fontSize: 16.0)),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('İptal'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Evet, Sil', style: TextStyle(color: const Color.fromARGB(255, 4, 4, 67))),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Evet, Sil'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('İptal', style: TextStyle(color: const Color.fromARGB(255, 4, 4, 67))),
             ),
+            
           ],
         );
       },

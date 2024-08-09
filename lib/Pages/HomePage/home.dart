@@ -6,13 +6,11 @@ import 'package:scanitu/utils/services/api_service.dart';
 
 class HomePage extends StatefulWidget {
   final String userName;
-  final String userImage;
   final Map<String, List<Map<String, dynamic>>> courses;
 
   const HomePage({
     super.key,
     required this.userName,
-    required this.userImage,
     required this.courses,
     String? userToken,
   });
@@ -26,12 +24,15 @@ class _HomePageState extends State<HomePage> {
 
   Map<String, dynamic> _userProfile = {};
   List<dynamic>? fetchedCourses;
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     fetchUserProfileData();
     _loadCoursesFromAPI();
+    _startAutoSlide();
   }
 
   Future<void> fetchUserProfileData() async {
@@ -56,12 +57,30 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  
+  void _startAutoSlide() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (_pageController.hasClients) {
+        int nextPage = _currentPage < 2 ? _currentPage + 1 : 0;
+
+        _pageController.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeIn,
+        );
+
+        setState(() {
+          _currentPage = nextPage;
+        });
+
+        _startAutoSlide();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final String userName = _userProfile['firstLastName'] ?? widget.userName;
-    final String userImage = _userProfile['userImage'] ?? widget.userImage;
+    final String userImage = _userProfile['userImage'] ?? "images/itu.jpeg";
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -91,20 +110,20 @@ class _HomePageState extends State<HomePage> {
               },
               child: Container(
                 color: Colors.grey[200],
-                padding: const EdgeInsets.all(40.0),
+                padding: const EdgeInsets.all(50.0),
                 child: Row(
                   children: [
                     CircleAvatar(
-                      backgroundImage: NetworkImage(userImage),
-                      radius: 30,
+                      backgroundImage: AssetImage(userImage),
+                      radius: 30.0,
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: 30.0),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'Merhaba,',
-                          style: TextStyle(fontSize: 18),
+                          style: TextStyle(fontSize: 18.0),
                         ),
                         Text(
                           userName,
@@ -119,7 +138,64 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-            const SizedBox(height: 20), // Boşluk eklemek için SizedBox kullanımı
+            const SizedBox(height: 20.0),
+
+            // Slayt gösterimi
+            SizedBox(
+              height: 200.0,
+              child: Stack(
+                children: [
+                  PageView(
+                    controller: _pageController,
+                    onPageChanged: (int page) {
+                      setState(() {
+                        _currentPage = page;
+                      });
+                    },
+                    children: [
+                      _buildSlide(
+                        "Uygulamanızı keşfedin",
+                        "İhtiyacınız olan her şey burada!",
+                        [Colors.blue, Colors.purple],
+                      ),
+                      _buildSlide(
+                        "Derslerinizi kolayca yönetin",
+                        "Tüm derslerinizi tek bir yerden yönetin.",
+                        [Colors.green, Colors.teal],
+                      ),
+                      _buildSlide(
+                        "Sınavlarınız hızlıca kaydedin",
+                        "Notları kolayca dijitalleştirin!",
+                        [Colors.orange, Colors.red],
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 10.0,
+                    left: 0.0,
+                    right: 0.0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List<Widget>.generate(3, (int index) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 5.0),
+                          height: 8.0,
+                          width: _currentPage == index ? 16.0 : 8.0,
+                          decoration: BoxDecoration(
+                            color: _currentPage == index
+                                ? Colors.blue
+                                : Colors.grey,
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40.0),
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -128,7 +204,7 @@ class _HomePageState extends State<HomePage> {
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CoursePage(course: {}),
+                      builder: (context) => const CoursePage(course: {}),
                     ),
                   );
                   if (result == true) {
@@ -139,15 +215,17 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       'DERSLERİM',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(width: 16), // Add some spacing between the text and the icon
+                    //Spacer(),
+                    SizedBox(width: 16),  // This pushes the icon to the right
                     Icon(Icons.arrow_forward, size: 24),
                   ],
                 ),
               ),
             ),
-            Container(
+            SizedBox(
               height: 300, // Set a fixed height for the course list
               child: fetchedCourses == null
                   ? const Center(child: CircularProgressIndicator())
@@ -164,7 +242,8 @@ class _HomePageState extends State<HomePage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => CourseSinglePage(course: course),
+                                        builder: (context) =>
+                                            CourseSinglePage(course: course),
                                       ),
                                     );
                                   },
@@ -173,12 +252,14 @@ class _HomePageState extends State<HomePage> {
                                       children: [
                                         Expanded(
                                           flex: 2,
-                                          child: Text(course['courseCode'].toString()), // Ensure it's a String
+                                          child: Text(
+                                              course['courseCode'].toString()),
                                         ),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           flex: 3,
-                                          child: Text(course['courseName'] ?? 'Ders İsmi Yok'),
+                                          child: Text(course['courseName'] ??
+                                              'Ders İsmi Yok'),
                                         ),
                                       ],
                                     ),
@@ -189,6 +270,57 @@ class _HomePageState extends State<HomePage> {
                             );
                           },
                         ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSlide(String title, String subtitle, List<Color> colors) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 26.0,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: [
+                  Shadow(
+                    blurRadius: 6.0,
+                    color: Colors.black54,
+                    offset: Offset(2.0, 2.0),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10.0),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 18.0,
+                color: Colors.white70,
+                shadows: [
+                  Shadow(
+                    blurRadius: 4.0,
+                    color: Colors.black54,
+                    offset: Offset(2.0, 2.0),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
