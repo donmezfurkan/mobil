@@ -102,15 +102,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.language),
-            title: Text('Dil Seçimi'),
-            trailing: Icon(Icons.arrow_forward),
-            onTap: () {
-              // Dil seçimi sayfasına yönlendirme kodu buraya gelecek
-            },
-          ),
-          const Divider(),
-          ListTile(
             leading: Icon(Icons.lock),
             title: Text('Gizlilik ve Güvenlik'),
             trailing: Icon(Icons.arrow_forward),

@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
-import 'package:flutter/material.dart';
 import 'package:excel/excel.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' show join;
@@ -14,13 +15,15 @@ class ExamDetailPage extends StatefulWidget {
   final String examId;
   final String examName;
   final Map<String, dynamic> exam;
+  final Map<String, dynamic> examofCourse;
 
   const ExamDetailPage(
       {Key? key,
       required this.courseId,
       required this.examId,
       required this.examName,
-      required this.exam})
+      required this.exam,
+      required this.examofCourse})
       : super(key: key);
 
   @override
@@ -41,6 +44,7 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
   void initState() {
     super.initState();
     _fetchGrades();
+    print(widget.examId);
   }
 
   Future<void> _fetchGrades() async {
@@ -147,8 +151,22 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
       );
 
       if (result != null) {
-        List<int> imagesByte = File(result.path).readAsBytesSync();
-        String base64String = base64Encode(imagesByte);
+        final File imageFile = File(result.path);
+
+        // Görüntüyü işleme
+        List<int> imageBytes = await imageFile.readAsBytes();
+        Uint8List uint8ListImageBytes = Uint8List.fromList(imageBytes);
+        img.Image originalImage = img.decodeImage(uint8ListImageBytes)!;
+
+        // Filtreleri uygula
+        img.Image preprocessedImage = img.grayscale(originalImage);
+        preprocessedImage = img.gaussianBlur(preprocessedImage, radius: 1);
+
+        // İşlenmiş görüntüyü base64 formatına çevir
+        List<int> processedImageBytes = img.encodeJpg(preprocessedImage);
+        String base64String = base64Encode(processedImageBytes);
+
+        // Google Vision API'ye gönder
         await _uploadImage(base64String);
       }
     } catch (e) {
@@ -181,43 +199,10 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
     _showDetectedDataPopup();
   }
 
-  Future<void> _saveGrade() async {
-    Map<String, dynamic> gradeData = {
-      'Student Number': studentIdController.text,
-      'scores': questionControllers
-          .map((controller) => int.tryParse(controller.text) ?? 0)
-          .toList(),
-      'Total': totalController.text
-    };
-
-    try {
-      final response =
-          await _visionAPIService.createGrade(widget.examId, gradeData);
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Not başarıyla kaydedildi')),
-        );
-        Navigator.of(context).pop();
-        _fetchGrades(); // Öğrenci tablosunu yenile
-      } else {
-        print('Not kaydedilemedi: ${response.statusCode}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Not kaydedilemedi: ${response.statusCode}')),
-        );
-        _showErrorDialog(context, 'Not kaydedilemedi: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Not kaydedilemedi: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Not kaydedilemedi: $e')),
-      );
-      _showErrorDialog(context, 'Not kaydedilemedi: $e');
-    }
-  }
-
   void _showDetectedDataPopup() {
     showDialog(
       context: context,
+      barrierDismissible: false,  // Popup'ın klavye kapatıldığında kapanmamasını sağlar
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
@@ -227,15 +212,13 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
               children: [
                 TextField(
                   controller: studentIdController,
-                  decoration:
-                      const InputDecoration(labelText: 'Öğrenci Numarası'),
+                  decoration: const InputDecoration(labelText: 'Öğrenci Numarası'),
                 ),
                 const SizedBox(height: 10),
                 for (int i = 0; i < questionControllers.length; i++)
                   TextField(
                     controller: questionControllers[i],
-                    decoration:
-                        InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
+                    decoration: InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
                     keyboardType: TextInputType.number,
                   ),
                 const SizedBox(height: 10),
@@ -250,14 +233,90 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
           actions: [
             TextButton(
               onPressed: _saveGrade,
-              child: const Text('Kaydet',
-                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+              child: const Text('Kaydet', style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('İptal',
+              child: const Text('İptal', style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+ Future<void> _saveGrade() async {
+  String studentNumberStr = studentIdController.text;
+  int? studentNumber = int.tryParse(studentNumberStr);
+
+  if (studentNumber == null) {
+    _showErrorDialog(context, 'Geçersiz öğrenci numarası.');
+    return;
+  }
+
+  // Öğrenci numarasının examofCourse arrayinde olup olmadığını kontrol et
+  bool isStudentRegistered = widget.examofCourse['students'].contains(studentNumber);
+
+  if (!isStudentRegistered) {
+    bool? shouldSave = await _showConfirmationDialog();
+    if (shouldSave == null || !shouldSave) {
+      // Kullanıcı hayır dediyse işlemi iptal et
+      return;
+    }
+  }
+
+  Map<String, dynamic> gradeData = {
+    'Student Number': studentNumberStr,
+    'scores': questionControllers
+        .map((controller) => int.tryParse(controller.text) ?? 0)
+        .toList(),
+    'Total': int.tryParse(totalController.text) ?? 0,
+  };
+
+  try {
+    final response = await _visionAPIService.createGrade(widget.examId, gradeData);
+    if (response.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not başarıyla kaydedildi')),
+      );
+      Navigator.of(context).pop();
+      _fetchGrades(); // Öğrenci tablosunu yenile
+    } else {
+      print('Not kaydedilemedi: ${response.statusCode}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Not kaydedilemedi: ${response.statusCode}')),
+      );
+      _showErrorDialog(context, 'Not kaydedilemedi: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Not kaydedilemedi: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Not kaydedilemedi: $e')),
+    );
+    _showErrorDialog(context, 'Not kaydedilemedi: $e');
+  }
+}
+
+  Future<bool?> _showConfirmationDialog() async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text('Öğrenci Numarası Bulunamadı'),
+          content: const Text(
+              'Bu öğrenci numarası bu derse kayıtlı değil, yine de kaydetmek ister misiniz?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Hayır',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Evet',
                   style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
             ),
           ],
@@ -287,33 +346,41 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
   }
 
   Future<void> _sendEmailWithExcel() async {
+    // Excel dosyası oluşturma
     var excel = Excel.createExcel();
     var sheet = excel['Sheet1'];
 
-    // Add headers
-    List<String> headers = ['Öğrenci Numarası'];
-    for (int i = 0; i < students[0]['scores'].length; i++) {
-      headers.add('Soru ${i + 1}');
-    }
+    // // Başlıklar
+    // List<Data?> headers = [
+    //   Data('Öğrenci Numarası'),
+    //   for (int i = 0; i < widget.exam['questionNumber']; i++)
+    //     Data('Soru ${i + 1}'),
+    //   Data('Toplam')
+    // ];
+    // sheet.appendRow(headers);
 
-    // Add data
-    for (var student in students) {
-      List<dynamic> row = [student['studentId']];
-      for (var score in student['scores']) {
-        row.add(score);
-      }
-    }
+    // // Öğrenci verileri
+    // for (var student in students) {
+    //   int totalScore =
+    //       student['scores'].fold(0, (sum, score) => sum + (score ?? 0));
+    //   List<Data?> row = [
+    //     Data(student['studentId'].toString()),
+    //     for (var score in student['scores']) Data(score.toString()),
+    //     Data(totalScore.toString())
+    //   ];
+    //   sheet.appendRow(row);
+    // }
 
-    // Save the Excel file to a temporary directory
+    // Excel dosyasını geçici bir konuma kaydet
     final Directory directory = await getTemporaryDirectory();
     final String path = join(directory.path, 'student_grades.xlsx');
     File(path).writeAsBytesSync(excel.encode()!);
 
-    // Send email with the Excel file as attachment
+    // E-posta gönderimi
     final Email email = Email(
       body: 'Öğrenci notları ektedir.',
       subject: 'Öğrenci Notları',
-      recipients: ['example@example.com'], // replace with actual email
+      recipients: ['donmezf16@itu.edu.tr'], // Kullanıcının kayıtlı e-posta adresi
       attachmentPaths: [path],
       isHTML: false,
     );
@@ -333,8 +400,6 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    int questionCount = int.parse(widget.exam['questionNumber'].toString());
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -357,9 +422,10 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
           padding: const EdgeInsets.all(16.0),
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Column(
+              : _isEmpty
+                  ? const Center(
+                      child: Text('Herhangi bir not oluşturulmamıştır.'))
+                  : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
@@ -377,70 +443,48 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                             color: Colors.grey,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        _isEmpty
-                            ? const Center(
-                                child: Text(
-                                    'Herhangi bir not oluşturulmamıştır.'))
-                            : Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth),
-                                    child: DataTable(
-                                      columns: [
-                                        const DataColumn(
-                                            label: Text('Öğrenci Numarası')),
-                                        for (int i = 0; i < questionCount; i++)
-                                          DataColumn(
-                                              label: Text('Soru ${i + 1}')),
-                                        const DataColumn(
-                                            label: Text('Toplam')),
-                                        const DataColumn(
-                                            label: Text('Düzenle')),
-                                      ],
-                                      rows: students.map((student) {
-                                        // Soru puanlarını topla
-                                        int totalScore = student['scores']
-                                            .fold(0, (sum, score) {
-                                          return sum + (score ?? 0);
-                                        });
-
-                                        List<DataCell> cells = [
-                                          DataCell(Text(student['studentId']
-                                              .toString())),
-                                          for (int i = 0;
-                                              i < questionCount;
-                                              i++)
-                                            DataCell(Text(
-                                                student['scores'][i]
-                                                        ?.toString() ??
-                                                    '')),
-                                          DataCell(
-                                              Text(totalScore.toString())),
-                                          DataCell(
-                                            IconButton(
-                                              icon: const Icon(Icons.edit),
-                                              onPressed: () =>
-                                                  _editStudentScores(student),
-                                            ),
-                                          ),
-                                        ];
-
-                                        // Ensure each row has the same number of cells as columns
-                                        while (cells.length <
-                                            questionCount + 3) {
-                                          cells.insert(cells.length - 2,
-                                              const DataCell(Text('')));
-                                        }
-
-                                        return DataRow(cells: cells);
-                                      }).toList(),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              columns: [
+                                const DataColumn(
+                                    label: Text('Öğrenci Numarası')),
+                                for (int i = 0;
+                                    i < widget.exam['questionNumber'];
+                                    i++)
+                                  DataColumn(label: Text('Soru ${i + 1}')),
+                                const DataColumn(label: Text('Toplam')),
+                                const DataColumn(label: Text('Düzenle')),
+                              ],
+                              rows: students.map((student) {
+                                int totalScore = student['scores'].fold(
+                                    0, (sum, score) => sum + (score ?? 0));
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                        Text(student['studentId'].toString())),
+                                    for (int i = 0;
+                                        i < widget.exam['questionNumber'];
+                                        i++)
+                                      DataCell(Text(
+                                          student['scores'][i]?.toString() ??
+                                              '')),
+                                    DataCell(Text(totalScore.toString())),
+                                    DataCell(
+                                      IconButton(
+                                        icon: const Icon(Icons.edit),
+                                        onPressed: () =>
+                                            _editStudentScores(student),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: _takePicture,
@@ -452,9 +496,7 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                               color: Colors.white),
                         ),
                       ],
-                    );
-                  },
-                ),
+                    ),
         ),
       ),
     );

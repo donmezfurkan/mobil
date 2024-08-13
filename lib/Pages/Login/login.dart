@@ -39,9 +39,9 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final response = await http.post(
-        //Uri.parse('http://169.254.241.104:3030/api/auth/login'),
+        Uri.parse('http://169.254.43.191:3030/api/auth/login'),
         //Uri.parse('http://169.254.40.200:3030/api/auth/login'),
-        Uri.parse('http://localhost:3030/api/auth/login'),
+        //Uri.parse('http://localhost:3030/api/auth/login'),
         headers: <String, String>{
           'Content-Type': 'application/json',
         },

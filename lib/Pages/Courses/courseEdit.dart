@@ -61,7 +61,7 @@ class _EditCoursePageState extends State<EditCoursePage> {
 
     // Upload the student list file first if it is selected
     if (_selectedFile != null) {
-      final uploadSuccess = await _uploadFile(_selectedFile!);
+      final uploadSuccess = await _uploadFile(_selectedFile!, _selectedCourse!['_id'],);
       if (!uploadSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Öğrenci listesi yüklenirken bir hata oluştu')),
@@ -118,24 +118,34 @@ class _EditCoursePageState extends State<EditCoursePage> {
     });
   }
 
-  Future<bool> _uploadFile(File file) async {
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('http://localhost:3030/api/student/student-create'), // Your server URL
-    );
-    request.files.add(await http.MultipartFile.fromPath('file', file.path));
+Future<bool> _uploadFile(File file, String courseId) async {
+  var request = http.MultipartRequest(
+    'POST',
+    //Uri.parse('http://localhost:3030/api/student/student-create'), 
+    Uri.parse('http://169.254.43.191:3030/api/student/student-create'), // Your server URL
+  );
+  
+  // Dosyayı ekle
+  request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
-    if (response.statusCode == 200) {
-      print('File uploaded successfully');
-      return true;
-    } else {
-      print('File upload failed: ${response.statusCode}');
-      print('Response: ${response.body}');
-      return false;
-    }
+  // courseId'yi ekle
+  request.fields['courseId'] = courseId;
+
+  // İstek gönderimi
+  var streamedResponse = await request.send();
+  print(streamedResponse);
+  var response = await http.Response.fromStream(streamedResponse);
+
+  if (response.statusCode == 200) {
+    print('File uploaded successfully');
+    return true;
+  } else {
+    print('File upload failed: ${response.statusCode}');
+    print('Response: ${response.body}');
+    return false;
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

@@ -270,6 +270,7 @@ class _CourseSinglePageState extends State<CourseSinglePage> {
                                                         examId: exam['_id'],
                                                         examName: exam['examName'],
                                                         exam: exam,
+                                                        examofCourse: widget.course,
                                                       ),
                                                     ),
                                                   );

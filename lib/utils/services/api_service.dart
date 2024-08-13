@@ -22,14 +22,14 @@ Future<String?> getUserId() async {
 }
 
 class APIConstants {
-  static const String baseURL = 'http://localhost:3030/api/';
+  //static const String baseURL = 'http://localhost:3030/api/';
   //static const String baseURL = 'http://169.254.241.104:3030/api/';   //tel ip
-  //static const String baseURL = 'http://169.254.40.200:3030/api/'; //ev ip
+  static const String baseURL = 'http://169.254.43.191:3030/api/'; //ev ip
 }
 
 class VisionAPIService {
   final String apiKey =
-      'AIzaSyAIJt-mH4drNMMzikRk_v1LbmSjWSY8HZY'; // Google Cloud Vision API anahtarı
+      'AIzaSyBJjvkJ-sMGlA6W3fYivBSb5hDNP6uPirs'; // Google Cloud Vision API anahtarı
 
   VisionAPIService();
 
@@ -629,6 +629,8 @@ class VisionAPIService {
         body: requestBodyJson,
       );
 
+      
+
       if (response.statusCode == 200) {
         print('Notlar başarıyla kaydedildi.');
       } else {
@@ -637,7 +639,8 @@ class VisionAPIService {
       }
       return response;
     } catch (e) {
-      print('Hata: $e');
+
+      print('Hata: $e.');
       return http.Response('Hata: $e', 500);
     }
   }
@@ -700,35 +703,72 @@ class VisionAPIService {
     }
   }
 
-  Future<bool> uploadStudentList(File file, String courseId) async {
-    const String apiUrl = '${APIConstants.baseURL}student/student-create';
-    final mimeTypeData = lookupMimeType(file.path)?.split('/');
-    if (mimeTypeData == null) {
-      print('Could not determine the file type');
-      return false; // Could not determine the file type
+  Future<Map<String, dynamic>?> fetchStudent(String courseId) async {
+    const String apiUrl = '${APIConstants.baseURL}student/student-show';
+
+    String? userToken = await getUserToken();
+
+    if (userToken == null) {
+      print('Token bulunamadı.');
+      return null;
     }
-
-    final request = http.MultipartRequest('POST', Uri.parse(apiUrl))
-      ..fields['courseId'] = courseId // courseId ekliyoruz
-      ..files.add(await http.MultipartFile.fromPath(
-        'file',
-        file.path,
-        contentType: MediaType(mimeTypeData[0], mimeTypeData[1]),
-      ));
-    print(request);
-
+    Map<String, String> headers = {
+      "Content-Type": "application/json",
+      "token": userToken,
+    };
+    Map<String, String> requestBody = {
+      "courseId": courseId,
+    };
+    String requestBodyJson = jsonEncode(requestBody);
     try {
-      final response = await request.send();
+      final http.Response response = await http.post(
+        Uri.parse(apiUrl),
+        headers: headers,
+        body: requestBodyJson,
+      );
+
       if (response.statusCode == 200) {
-        print('File uploaded successfully');
-        return true;
+        return json.decode(response.body) as Map<String, dynamic>;
       } else {
-        print('Failed to upload file. Status code: ${response.statusCode}');
-        return false;
+        print('Hata kodu: ${response.statusCode}');
+        print('Yanıt: ${response.body}');
+        return null;
       }
     } catch (e) {
-      print('Error uploading file: $e');
-      return false;
+      print('Hata: $e');
+      return null;
     }
   }
+
+  // Future<bool> uploadStudentList(File file, String courseId) async {
+  //   const String apiUrl = '${APIConstants.baseURL}student/student-create';
+  //   final mimeTypeData = lookupMimeType(file.path)?.split('/');
+  //   if (mimeTypeData == null) {
+  //     print('Could not determine the file type');
+  //     return false; // Could not determine the file type
+  //   }
+
+  //   final request = http.MultipartRequest('POST', Uri.parse(apiUrl))
+  //     ..fields['courseId'] = courseId // courseId ekliyoruz
+  //     ..files.add(await http.MultipartFile.fromPath(
+  //       'file',
+  //       file.path,
+  //       contentType: MediaType(mimeTypeData[0], mimeTypeData[1]),
+  //     ));
+  //   print(request);
+
+  //   try {
+  //     final response = await request.send();
+  //     if (response.statusCode == 200) {
+  //       print('File uploaded successfully');
+  //       return true;
+  //     } else {
+  //       print('Failed to upload file. Status code: ${response.statusCode}');
+  //       return false;
+  //     }
+  //   } catch (e) {
+  //     print('Error uploading file: $e');
+  //     return false;
+  //   }
+  // }
 }

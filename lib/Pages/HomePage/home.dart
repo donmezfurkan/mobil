@@ -3,10 +3,13 @@ import 'package:scanitu/Pages/Courses/course.dart';
 import 'package:scanitu/Pages/Courses/courseSingle.dart';
 import 'package:scanitu/Pages/Profile/profile.dart' as profile;
 import 'package:scanitu/utils/services/api_service.dart';
+import 'package:scanitu/Pages/Alert/alert-helper.dart';
+
 
 class HomePage extends StatefulWidget {
   final String userName;
   final Map<String, List<Map<String, dynamic>>> courses;
+  
 
   const HomePage({
     super.key,
@@ -21,6 +24,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final VisionAPIService _visionAPIService = VisionAPIService();
+  
 
   Map<String, dynamic> _userProfile = {};
   List<dynamic>? fetchedCourses;
@@ -79,6 +83,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    
     final String userName = _userProfile['firstLastName'] ?? widget.userName;
     final String userImage = _userProfile['userImage'] ?? "images/itu.jpeg";
 
@@ -154,7 +159,7 @@ class _HomePageState extends State<HomePage> {
                     },
                     children: [
                       _buildSlide(
-                        "Uygulamanızı keşfedin",
+                        "Uygulamamızı keşfedin",
                         "İhtiyacınız olan her şey burada!",
                         [Colors.blue, Colors.purple],
                       ),
@@ -164,7 +169,7 @@ class _HomePageState extends State<HomePage> {
                         [Colors.green, Colors.teal],
                       ),
                       _buildSlide(
-                        "Sınavlarınız hızlıca kaydedin",
+                        "Sınavlarınızı hızlıca kaydedin",
                         "Notları kolayca dijitalleştirin!",
                         [Colors.orange, Colors.red],
                       ),
