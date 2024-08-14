@@ -122,7 +122,7 @@ Future<bool> _uploadFile(File file, String courseId) async {
   var request = http.MultipartRequest(
     'POST',
     //Uri.parse('http://localhost:3030/api/student/student-create'), 
-    Uri.parse('http://169.254.43.191:3030/api/student/student-create'), // Your server URL
+    Uri.parse('http://169.254.209.231:3030/api/student/student-create'), // Your server URL
   );
   
   // Dosyayı ekle

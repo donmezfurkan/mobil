@@ -44,7 +44,6 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
   void initState() {
     super.initState();
     _fetchGrades();
-    print(widget.examId);
   }
 
   Future<void> _fetchGrades() async {
@@ -153,25 +152,52 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
       if (result != null) {
         final File imageFile = File(result.path);
 
-        // Görüntüyü işleme
+        // Read image
         List<int> imageBytes = await imageFile.readAsBytes();
         Uint8List uint8ListImageBytes = Uint8List.fromList(imageBytes);
         img.Image originalImage = img.decodeImage(uint8ListImageBytes)!;
 
-        // Filtreleri uygula
+        // Apply grayscale
         img.Image preprocessedImage = img.grayscale(originalImage);
+
+        // Apply Gaussian Blur
         preprocessedImage = img.gaussianBlur(preprocessedImage, radius: 1);
 
-        // İşlenmiş görüntüyü base64 formatına çevir
+        // Apply Thresholding (assuming a fixed threshold of 128)
+        preprocessedImage = applyThreshold(preprocessedImage, 128);
+
+        // Adjust contrast if needed
+        preprocessedImage = adjustContrast(preprocessedImage, 1.2);
+
+        // Convert the processed image back to base64
         List<int> processedImageBytes = img.encodeJpg(preprocessedImage);
         String base64String = base64Encode(processedImageBytes);
 
-        // Google Vision API'ye gönder
+        // Upload the image
         await _uploadImage(base64String);
       }
     } catch (e) {
       print('Failed to take picture: $e');
     }
+  }
+
+  img.Image applyThreshold(img.Image image, int threshold) {
+    img.Image thresholded = img.Image.from(image);
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        num luma = img.getLuminance(image.getPixel(x, y));
+        // if (luma < threshold) {
+        //   thresholded.setPixel(x, y, img.getColor(0, 0, 0));
+        // } else {
+        //   thresholded.setPixel(x, y, img.getColor(255, 255, 255));
+        // }
+      }
+    }
+    return thresholded;
+  }
+
+  img.Image adjustContrast(img.Image image, double contrast) {
+    return img.adjustColor(image, contrast: contrast);
   }
 
   Future<void> _uploadImage(String base64Image) async {
@@ -202,7 +228,8 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
   void _showDetectedDataPopup() {
     showDialog(
       context: context,
-      barrierDismissible: false,  // Popup'ın klavye kapatıldığında kapanmamasını sağlar
+      barrierDismissible:
+          false, // Popup'ın klavye kapatıldığında kapanmamasını sağlar
       builder: (context) {
         return AlertDialog(
           backgroundColor: Colors.white,
@@ -212,13 +239,15 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
               children: [
                 TextField(
                   controller: studentIdController,
-                  decoration: const InputDecoration(labelText: 'Öğrenci Numarası'),
+                  decoration:
+                      const InputDecoration(labelText: 'Öğrenci Numarası'),
                 ),
                 const SizedBox(height: 10),
                 for (int i = 0; i < questionControllers.length; i++)
                   TextField(
                     controller: questionControllers[i],
-                    decoration: InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
+                    decoration:
+                        InputDecoration(labelText: 'Soru ${i + 1} Puanı'),
                     keyboardType: TextInputType.number,
                   ),
                 const SizedBox(height: 10),
@@ -233,13 +262,15 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
           actions: [
             TextButton(
               onPressed: _saveGrade,
-              child: const Text('Kaydet', style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+              child: const Text('Kaydet',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('İptal', style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
+              child: const Text('İptal',
+                  style: TextStyle(color: Color.fromARGB(255, 4, 4, 67))),
             ),
           ],
         );
@@ -247,57 +278,59 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
     );
   }
 
- Future<void> _saveGrade() async {
-  String studentNumberStr = studentIdController.text;
-  int? studentNumber = int.tryParse(studentNumberStr);
+  Future<void> _saveGrade() async {
+    String studentNumberStr = studentIdController.text;
+    int? studentNumber = int.tryParse(studentNumberStr);
 
-  if (studentNumber == null) {
-    _showErrorDialog(context, 'Geçersiz öğrenci numarası.');
-    return;
-  }
-
-  // Öğrenci numarasının examofCourse arrayinde olup olmadığını kontrol et
-  bool isStudentRegistered = widget.examofCourse['students'].contains(studentNumber);
-
-  if (!isStudentRegistered) {
-    bool? shouldSave = await _showConfirmationDialog();
-    if (shouldSave == null || !shouldSave) {
-      // Kullanıcı hayır dediyse işlemi iptal et
+    if (studentNumber == null) {
+      _showErrorDialog(context, 'Geçersiz öğrenci numarası.');
       return;
     }
-  }
 
-  Map<String, dynamic> gradeData = {
-    'Student Number': studentNumberStr,
-    'scores': questionControllers
-        .map((controller) => int.tryParse(controller.text) ?? 0)
-        .toList(),
-    'Total': int.tryParse(totalController.text) ?? 0,
-  };
+    // Öğrenci numarasının examofCourse arrayinde olup olmadığını kontrol et
+    bool isStudentRegistered =
+        widget.examofCourse['students'].contains(studentNumber);
 
-  try {
-    final response = await _visionAPIService.createGrade(widget.examId, gradeData);
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not başarıyla kaydedildi')),
-      );
-      Navigator.of(context).pop();
-      _fetchGrades(); // Öğrenci tablosunu yenile
-    } else {
-      print('Not kaydedilemedi: ${response.statusCode}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Not kaydedilemedi: ${response.statusCode}')),
-      );
-      _showErrorDialog(context, 'Not kaydedilemedi: ${response.statusCode}');
+    if (!isStudentRegistered) {
+      bool? shouldSave = await _showConfirmationDialog();
+      if (shouldSave == null || !shouldSave) {
+        // Kullanıcı hayır dediyse işlemi iptal et
+        return;
+      }
     }
-  } catch (e) {
-    print('Not kaydedilemedi: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Not kaydedilemedi: $e')),
-    );
-    _showErrorDialog(context, 'Not kaydedilemedi: $e');
+
+    Map<String, dynamic> gradeData = {
+      'Student Number': studentNumberStr,
+      'scores': questionControllers
+          .map((controller) => int.tryParse(controller.text) ?? 0)
+          .toList(),
+      'Total': int.tryParse(totalController.text) ?? 0,
+    };
+
+    try {
+      final response =
+          await _visionAPIService.createGrade(widget.examId, gradeData);
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not başarıyla kaydedildi')),
+        );
+        Navigator.of(context).pop();
+        _fetchGrades(); // Öğrenci tablosunu yenile
+      } else {
+        print('Not kaydedilemedi: ${response.statusCode}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Not kaydedilemedi: ${response.statusCode}')),
+        );
+        _showErrorDialog(context, 'Not kaydedilemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Not kaydedilemedi: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Not kaydedilemedi: $e')),
+      );
+      _showErrorDialog(context, 'Not kaydedilemedi: $e');
+    }
   }
-}
 
   Future<bool?> _showConfirmationDialog() async {
     return showDialog<bool>(
@@ -345,58 +378,43 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
     );
   }
 
-  Future<void> _sendEmailWithExcel() async {
-    // Excel dosyası oluşturma
-    var excel = Excel.createExcel();
-    var sheet = excel['Sheet1'];
-
-    // // Başlıklar
-    // List<Data?> headers = [
-    //   Data('Öğrenci Numarası'),
-    //   for (int i = 0; i < widget.exam['questionNumber']; i++)
-    //     Data('Soru ${i + 1}'),
-    //   Data('Toplam')
-    // ];
-    // sheet.appendRow(headers);
-
-    // // Öğrenci verileri
-    // for (var student in students) {
-    //   int totalScore =
-    //       student['scores'].fold(0, (sum, score) => sum + (score ?? 0));
-    //   List<Data?> row = [
-    //     Data(student['studentId'].toString()),
-    //     for (var score in student['scores']) Data(score.toString()),
-    //     Data(totalScore.toString())
-    //   ];
-    //   sheet.appendRow(row);
-    // }
-
-    // Excel dosyasını geçici bir konuma kaydet
-    final Directory directory = await getTemporaryDirectory();
-    final String path = join(directory.path, 'student_grades.xlsx');
-    File(path).writeAsBytesSync(excel.encode()!);
-
-    // E-posta gönderimi
-    final Email email = Email(
-      body: 'Öğrenci notları ektedir.',
-      subject: 'Öğrenci Notları',
-      recipients: ['donmezf16@itu.edu.tr'], // Kullanıcının kayıtlı e-posta adresi
-      attachmentPaths: [path],
-      isHTML: false,
-    );
-
-    try {
-      await FlutterEmailSender.send(email);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('E-posta başarıyla gönderildi')),
-      );
-    } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('E-posta gönderilirken bir hata oluştu: $error')),
-      );
+ Future<void> _sendEmailWithExcel() async {
+  try {
+    final response = await _visionAPIService.sendMail(widget.examId);
+    
+    if (response!['status'] == 200) {
+      _showSuccessDialog(context, response['message']);
+    } else {
+      _showErrorDialog(context, 'Mail gönderilemedi: ${response['message']}');
     }
+
+  } catch (e) {
+    print('Mail Gönderilemedi: $e');
+    _showErrorDialog(context, 'Mail Gönderilemedi: $e');
   }
+}
+
+void _showSuccessDialog(BuildContext context, String message) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Success'),
+        content: Text(message),
+        actions: <Widget>[
+          TextButton(
+            child: const Text('OK',style: TextStyle(color: Color.fromARGB(255, 4, 4, 67)),),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -450,7 +468,7 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                             child: DataTable(
                               columns: [
                                 const DataColumn(
-                                    label: Text('Öğrenci Numarası')),
+                                    label: Text('Öğrenci No')),
                                 for (int i = 0;
                                     i < widget.exam['questionNumber'];
                                     i++)
@@ -492,8 +510,8 @@ class _ExamDetailPageState extends State<ExamDetailPage> {
                             backgroundColor: MaterialStateProperty.all(
                                 const Color.fromARGB(255, 4, 4, 67)),
                           ),
-                          child: const Icon(Icons.camera_alt,
-                              color: Colors.white),
+                          child:
+                              const Icon(Icons.camera_alt, color: Colors.white),
                         ),
                       ],
                     ),

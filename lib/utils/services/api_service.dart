@@ -24,7 +24,7 @@ Future<String?> getUserId() async {
 class APIConstants {
   //static const String baseURL = 'http://localhost:3030/api/';
   //static const String baseURL = 'http://169.254.241.104:3030/api/';   //tel ip
-  static const String baseURL = 'http://169.254.43.191:3030/api/'; //ev ip
+  static const String baseURL = 'http://169.254.209.231:3030/api/'; //ev ip
 }
 
 class VisionAPIService {
@@ -58,6 +58,7 @@ class VisionAPIService {
       if (response.statusCode == 200) {
         // Başarılı istek
         final Map<String, dynamic> data = jsonDecode(response.body);
+        
         final String extractedText =
             data['responses'][0]['fullTextAnnotation']['text'];
         // İşlem sonrası veri haritasını oluştur
@@ -71,9 +72,11 @@ class VisionAPIService {
         if (extractedText.isEmpty) {
           return dataMap;
         }
+        print(extractedText);
 
         // Response'ı satır bazında ayır
         List<String> lines = extractedText.split('\n');
+        print('lines: $lines');
 
         // Verileri işle ve istediğin formata dönüştür
         bool isReadingScores = false;
@@ -120,7 +123,9 @@ class VisionAPIService {
 
         dataMap['scores'] =
             scores.map((e) => e == null ? 0 : int.parse(e)).toList();
+            print('datamap: $dataMap');
         return dataMap;
+        
       } else {
         // Hata durumu
         print('Hata kodu: ${response.statusCode}');
@@ -729,6 +734,43 @@ class VisionAPIService {
 
       if (response.statusCode == 200) {
         return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        print('Hata kodu: ${response.statusCode}');
+        print('Yanıt: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Hata: $e');
+      return null;
+    }
+  }
+
+    Future<Map<String, dynamic>?> sendMail(String examId) async {
+    const String apiUrl = '${APIConstants.baseURL}sendMail/send';
+
+    String? userToken = await getUserToken();
+
+    if (userToken == null) {
+      print('Token bulunamadı.');
+      return null;
+    }
+    Map<String, String> headers = {
+      "Content-Type": "application/json",
+      "token": userToken,
+    };
+    Map<String, String> requestBody = {
+      "examId": examId,
+    };
+    String requestBodyJson = jsonEncode(requestBody);
+    try {
+      final http.Response response = await http.post(
+        Uri.parse(apiUrl),
+        headers: headers,
+        body: requestBodyJson,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
       } else {
         print('Hata kodu: ${response.statusCode}');
         print('Yanıt: ${response.body}');
